@@ -5,7 +5,7 @@ require_once __DIR__ . "/includes/header.php";
 ?>
 <body>
 
-    <h1>Internship Application Leaderboard Test</h1>
+    <h1>Internship Application Leaderboard</h1>
 
     <p>
         <a href="/roman/dashboard.php">Dashboard</a> |
