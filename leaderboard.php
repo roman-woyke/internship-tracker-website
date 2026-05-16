@@ -5,20 +5,18 @@ require_once __DIR__ . "/includes/header.php";
 ?>
 <body>
 
-    <h1>Internship Application Leaderboard Test</h1>
+    <h1>Internship Application Leaderboard</h1>
 
     <p>
         <a href="/basti/dashboard.php">Dashboard</a> |
         <a href="/basti/logout.php">Logout</a>
     </p>
     
-<?php 
+<?php
 require_once __DIR__ . "/score-table.php";
 require_once __DIR__ . "/score-chart.php";
 ?>
 
-<body>
-    
-<?php 
+<?php
 require_once __DIR__ . "/includes/footer.php";
 ?>
