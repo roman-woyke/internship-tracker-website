@@ -10,14 +10,14 @@
 
     <title>Internship Tracker</title>
 
-    <link rel="stylesheet" href="/roman/assets/css/style.css">
+    <link rel="stylesheet" href="/basti/assets/css/style.css">
 </head>
 <body>
 
 <nav class="navbar">
     <div class="nav-left">
-        <a href="/roman/dashboard.php">Dashboard</a>
-        <a href="/roman/leaderboard.php">Leaderboard</a>
+        <a href="/basti/dashboard.php">Dashboard</a>
+        <a href="/basti/leaderboard.php">Leaderboard</a>
     </div>
 
     <div class="nav-right">
@@ -27,7 +27,7 @@
             </span>
         <?php endif; ?>
 
-        <a href="/roman/logout.php">Logout</a>
+        <a href="/basti/logout.php">Logout</a>
     </div>
 </nav>
 
