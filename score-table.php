@@ -7,8 +7,8 @@
                 <th>Pending (2p)</th>
                 <th>Rejected (1p)</th>
                 <th>Ghosted (1p)</th>
-                <th>Interviews (10p)</th>
-                <th>Offers (20p)</th>
+                <th>Interviews (5-7-10-15p)</th>
+                <th>Offers (10-14-20-30p)</th>
                 <th>Score</th>
             </tr>
         </thead>
