@@ -23,7 +23,7 @@ const TAG_CONFIG = {
   'MAYBE':           { bg: '#dc2626',     border: 'none',                    color: '#fff',           label: 'Maybe'           },
   'PROBABLY':        { bg: '#f59e0b',     border: 'none',                    color: '#271600',        label: 'Probably'        },
   'FOR SURE':        { bg: '#16a34a',     border: 'none',                    color: '#fff',           label: 'For Sure'        },
-  'ABSOLUTE CINEMA': { bg: '#06b6d4',     border: 'none',                    color: '#042f3a',        label: 'Absolute Cinema' },
+  'ABSOLUTE CINEMA': { bg: '#06b6d4',     border: 'none',                    color: '#042f3a',        label: 'Absolute C.'     },
 };
 
 const STATUS_EDIT_OPTIONS = ['PENDING','REJECTED','GHOSTED','INTERVIEW','OFFER'];
