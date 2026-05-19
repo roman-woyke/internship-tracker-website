@@ -1,8 +1,20 @@
 // app.real.jsx — production app shell
-// Replaces app.jsx: uses real user IDs, real nav links, real QuickAdd API call.
-// chart.jsx / leaderboard.jsx / sidebar.real.jsx are loaded before this file.
 
 const { useState: useStateApp, useEffect: useEffectApp, useRef: useRefApp } = React;
+
+// Read saved theme from localStorage and merge with defaults (runs once at module load)
+const _savedTheme = (() => {
+  try { return JSON.parse(localStorage.getItem('it_theme') || '{}'); } catch(e) { return {}; }
+})();
+const _tweakDefaults = { ...(window.__TWEAK_DEFAULTS__ || { dark: true, accent: '#22c55e' }), ..._savedTheme };
+
+const STATUS_COLORS = {
+  OFFER:     { bg: '#22c55e', color: '#fff' },
+  INTERVIEW: { bg: '#3b82f6', color: '#fff' },
+  PENDING:   { bg: '#f59e0b', color: '#fff' },
+  GHOSTED:   { bg: '#64748b', color: '#fff' },
+  REJECTED:  { bg: '#ef4444', color: '#fff' },
+};
 
 function initials2(name) {
   return name.split(' ').map(s => s[0]).slice(0, 2).join('').toUpperCase();
@@ -52,38 +64,123 @@ function UserSwitcher({ currentUserId, setCurrentUserId }) {
   );
 }
 
-function StatCard({ label, value, foot, deltaDir, featured, rank, icon }) {
+function StatCard({ label, value, foot, featured, rank, icon }) {
   return (
     <div className={`stat${featured ? ' featured' : ''}`}>
       {rank && <span className="stat-rank">RANK #{rank}</span>}
       <div className="stat-label">{icon}{label}</div>
       <div className="stat-value">{value}</div>
-      <div className="stat-foot">
-        {deltaDir && (
-          <span className={`delta ${deltaDir}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 2 }}>
-            {deltaDir === 'up' ? <Icon.ArrowUp size={11} /> : <Icon.ArrowDown size={11} />}
-          </span>
-        )}
-        {foot && foot.text}
+      <div className="stat-foot">{foot && foot.text}</div>
+    </div>
+  );
+}
+
+function MyApplications({ user }) {
+  const apps = user ? (user.applications || []) : [];
+
+  if (apps.length === 0) {
+    return (
+      <div className="card">
+        <div className="card-head">
+          <div>
+            <h3 className="card-title"><Icon.Briefcase size={15} /> My Applications</h3>
+            <p className="card-subtitle">No applications yet — log your first above!</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const sorted = [...apps].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+  return (
+    <div className="card">
+      <div className="card-head">
+        <div>
+          <h3 className="card-title"><Icon.Briefcase size={15} /> My Applications</h3>
+          <p className="card-subtitle">{apps.length} application{apps.length !== 1 ? 's' : ''} tracked</p>
+        </div>
+      </div>
+      <div style={{ overflowX: 'auto' }}>
+        <table className="lb-table">
+          <thead>
+            <tr>
+              <th>Company</th>
+              <th>Role</th>
+              <th>Status</th>
+              <th>Tag</th>
+              <th className="num">Applied</th>
+            </tr>
+          </thead>
+          <tbody>
+            {sorted.map(app => {
+              const st = app.peak_status || app.status;
+              const sc = STATUS_COLORS[st] || STATUS_COLORS.PENDING;
+              return (
+                <tr key={app.application_id}>
+                  <td style={{ fontWeight: 500 }}>
+                    {app.job_link ? (
+                      <a href={app.job_link} target="_blank" rel="noreferrer"
+                         style={{ color: 'inherit', textDecoration: 'none' }}>
+                        {app.company_name}
+                        <span style={{ opacity: 0.45, fontSize: 11, marginLeft: 3 }}>↗</span>
+                      </a>
+                    ) : app.company_name}
+                  </td>
+                  <td style={{ color: 'var(--text-2)' }}>{app.job_title || '—'}</td>
+                  <td>
+                    <span style={{
+                      display: 'inline-block', padding: '2px 8px', borderRadius: 999,
+                      background: sc.bg, color: sc.color,
+                      fontSize: 10, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase',
+                    }}>{st}</span>
+                  </td>
+                  <td style={{ color: 'var(--text-3)', fontSize: 12 }}>{app.tag || '—'}</td>
+                  <td className="num" style={{ color: 'var(--text-3)', fontSize: 12, fontFamily: 'var(--font-mono)' }}>
+                    {new Date(app.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: '2-digit' })}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
       </div>
     </div>
   );
 }
 
 function App() {
-  const [t, setTweak] = useTweaks(window.__TWEAK_DEFAULTS__ || { dark: true, accent: '#22c55e' });
+  const [t, _setTweak] = useTweaks(_tweakDefaults);
+
+  // Persist theme changes to localStorage
+  const setTweak = (keyOrObj, val) => {
+    _setTweak(keyOrObj, val);
+    try {
+      const saved = JSON.parse(localStorage.getItem('it_theme') || '{}');
+      if (typeof keyOrObj === 'object' && keyOrObj !== null) Object.assign(saved, keyOrObj);
+      else saved[keyOrObj] = val;
+      localStorage.setItem('it_theme', JSON.stringify(saved));
+    } catch(e) {}
+  };
 
   const initData      = window.__INIT_DATA__ || {};
   const view          = initData.view || 'dashboard';
   const basePath      = window.BASE_PATH || '';
   const isLeaderboard = view === 'leaderboard';
 
-  const defaultUser = CURRENT_USER.username || (USERS[0] ? USERS[0].id : '');
-  const [currentUserId, setCurrentUserId] = useStateApp(defaultUser);
-  const [chartMode,     setChartMode]     = useStateApp('multi');
+  // Logged-in user is always fixed (used for dashboard)
+  const loggedInUserId = CURRENT_USER.username || (USERS[0] ? USERS[0].id : '');
+  const loggedInUser   = USERS.find(u => u.id === loggedInUserId) || USERS[0];
+
+  // Selected user for leaderboard stat strip (switchable via UserSwitcher / row click)
+  const [currentUserId, setCurrentUserId] = useStateApp(loggedInUserId);
+  const [chartMode,     setChartMode]     = useStateApp('area');
   const [range,         setRange]         = useStateApp('3M');
 
-  const current = USERS.find(u => u.id === currentUserId) || USERS[0];
+  // On dashboard always show logged-in user; on leaderboard show selected user
+  const current = isLeaderboard
+    ? (USERS.find(u => u.id === currentUserId) || USERS[0])
+    : loggedInUser;
 
   const rankMap = (() => {
     const m = {};
@@ -91,12 +188,10 @@ function App() {
     return m;
   })();
 
-  // Apply dark/light theme
   useEffectApp(() => {
     document.documentElement.setAttribute('data-theme', t.dark ? 'dark' : 'light');
   }, [t.dark]);
 
-  // Apply accent colour
   useEffectApp(() => {
     if (!t.accent) return;
     const r = document.documentElement;
@@ -105,12 +200,15 @@ function App() {
     r.style.setProperty('--accent-strong', `color-mix(in srgb, ${t.accent} 80%, black)`);
   }, [t.accent]);
 
-  // Wire QuickAdd to the real add-application API
-  const handleAdd = ({ company, jobTitle, status }, onSuccess, onError) => {
+  const handleAdd = ({ company, jobTitle, status, tag, jobLink, location, notes }, onSuccess, onError) => {
     const body = new FormData();
     body.append('company_name', company);
-    if (jobTitle) body.append('job_title', jobTitle);
+    if (jobTitle)  body.append('job_title', jobTitle);
     body.append('status', status || 'PENDING');
+    if (tag)       body.append('tag', tag);
+    if (jobLink)   body.append('job_link', jobLink);
+    if (location)  body.append('location', location);
+    if (notes)     body.append('notes', notes);
 
     fetch(basePath + '/api/add-application.php', { method: 'POST', body })
       .then(r => { if (!r.ok) throw new Error('Failed'); return r.json(); })
@@ -160,7 +258,10 @@ function App() {
           {t.dark ? <Icon.Sun size={15} /> : <Icon.Moon size={15} />}
         </button>
 
-        <UserSwitcher currentUserId={currentUserId} setCurrentUserId={setCurrentUserId} />
+        {/* UserSwitcher only on leaderboard — dashboard is always your own view */}
+        {isLeaderboard && (
+          <UserSwitcher currentUserId={currentUserId} setCurrentUserId={setCurrentUserId} />
+        )}
 
         <a href={basePath + '/logout.php'} className="icon-btn" title="Logout"
            style={{ fontSize: 18, textDecoration: 'none' }}>↪</a>
@@ -170,7 +271,7 @@ function App() {
       <div className="stats-row" style={{ marginBottom: 20 }}>
         <StatCard
           featured
-          rank={rankMap[currentUserId]}
+          rank={rankMap[current.id]}
           icon={<Icon.Trophy size={12} />}
           label={`${current.name}'s score`}
           value={current.score}
@@ -212,14 +313,15 @@ function App() {
         <div className="dashboard-grid">
           <div className="col">
             <ScoreChart
-              currentUserId={currentUserId}
+              currentUserId={loggedInUserId}
+              singleUser={true}
               mode={chartMode} setMode={setChartMode}
               range={range} setRange={setRange}
             />
-            <Leaderboard currentUserId={currentUserId} onPickUser={setCurrentUserId} />
+            <MyApplications user={loggedInUser} />
           </div>
           <div className="col">
-            <WeeklyGoal user={current} />
+            <WeeklyGoal user={loggedInUser} />
             <QuickAdd onAdd={handleAdd} />
           </div>
         </div>

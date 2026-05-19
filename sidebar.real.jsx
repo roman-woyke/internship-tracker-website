@@ -1,7 +1,6 @@
 // sidebar.real.jsx — production sidebar
 // WeeklyGoal uses real weekly data from CURRENT_USER (set by data.real.jsx).
-// NewListings is hidden (no real data source).
-// QuickAdd calls back to parent's onAdd handler (wired to API in app.real.jsx).
+// QuickAdd includes all application fields: status, tag, job_link, location, notes.
 
 const { useState: useStateSB } = React;
 
@@ -66,30 +65,46 @@ function WeeklyGoal({ user }) {
 }
 
 const STATUS_OPTIONS = [
-  { id: 'PENDING',   label: 'Pending',   pts: 2  },
-  { id: 'REJECTED',  label: 'Rejected',  pts: 1  },
-  { id: 'INTERVIEW', label: 'Interview', pts: 5  },
-  { id: 'OFFER',     label: 'Offer',     pts: 18 },
+  { id: 'PENDING',   label: 'Pending',   pts: '+2'  },
+  { id: 'REJECTED',  label: 'Rejected',  pts: '−1'  },
+  { id: 'GHOSTED',   label: 'Ghosted',   pts: '−1'  },
+  { id: 'INTERVIEW', label: 'Interview', pts: '+8'  },
+  { id: 'OFFER',     label: 'Offer',     pts: '+18' },
+];
+
+const TAG_OPTIONS = [
+  { id: '',                label: 'Default'         },
+  { id: 'MAYBE',           label: 'Maybe'           },
+  { id: 'PROBABLY',        label: 'Probably'        },
+  { id: 'FOR SURE',        label: 'For Sure'        },
+  { id: 'ABSOLUTE CINEMA', label: 'Absolute Cinema' },
 ];
 
 function QuickAdd({ onAdd }) {
   const [company,  setCompany]  = useStateSB('');
   const [jobTitle, setJobTitle] = useStateSB('');
   const [status,   setStatus]   = useStateSB('PENDING');
+  const [tag,      setTag]      = useStateSB('');
+  const [jobLink,  setJobLink]  = useStateSB('');
+  const [location, setLocation] = useStateSB('');
+  const [notes,    setNotes]    = useStateSB('');
   const [success,  setSuccess]  = useStateSB(false);
   const [loading,  setLoading]  = useStateSB(false);
+
+  const showTag = status === 'INTERVIEW' || status === 'OFFER';
+
+  const reset = () => {
+    setCompany(''); setJobTitle(''); setTag('');
+    setJobLink(''); setLocation(''); setNotes('');
+  };
 
   const submit = (e) => {
     e.preventDefault();
     if (!company.trim() || loading) return;
     setLoading(true);
     onAdd && onAdd(
-      { company, jobTitle, status },
-      () => {
-        setCompany(''); setJobTitle(''); setLoading(false);
-        setSuccess(true);
-        setTimeout(() => setSuccess(false), 2200);
-      },
+      { company, jobTitle, status, tag: showTag ? tag : '', jobLink, location, notes },
+      () => { reset(); setLoading(false); setSuccess(true); setTimeout(() => setSuccess(false), 2200); },
       () => setLoading(false)
     );
   };
@@ -115,17 +130,45 @@ function QuickAdd({ onAdd }) {
         </div>
         <div>
           <label className="qa-label">Status</label>
-          <div className="qa-status-grid">
+          <div className="qa-status-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
             {STATUS_OPTIONS.map(o => (
               <button type="button" key={o.id}
                 className={`qa-status${status === o.id ? ' active' : ''}`}
                 onClick={() => setStatus(o.id)}
               >
                 {o.label}
-                <span className="pts">+{o.pts}p</span>
+                <span className="pts">{o.pts}</span>
               </button>
             ))}
           </div>
+        </div>
+        {showTag && (
+          <div>
+            <label className="qa-label">Confidence</label>
+            <select className="qa-input" value={tag} onChange={e => setTag(e.target.value)}
+              style={{ cursor: 'pointer' }}>
+              {TAG_OPTIONS.map(t => (
+                <option key={t.id} value={t.id}>{t.label}</option>
+              ))}
+            </select>
+          </div>
+        )}
+        <div>
+          <label className="qa-label">Job link</label>
+          <input className="qa-input" type="url" placeholder="https://..."
+            value={jobLink} onChange={e => setJobLink(e.target.value)} />
+        </div>
+        <div>
+          <label className="qa-label">Location</label>
+          <input className="qa-input" placeholder="e.g. Berlin, Remote"
+            value={location} onChange={e => setLocation(e.target.value)} />
+        </div>
+        <div>
+          <label className="qa-label">Notes</label>
+          <textarea className="qa-input" placeholder="Any notes about this application…"
+            value={notes} onChange={e => setNotes(e.target.value)}
+            rows="3"
+            style={{ resize: 'vertical', minHeight: 64, fontFamily: 'inherit', fontSize: 'inherit', lineHeight: 1.5 }} />
         </div>
         <button className="btn-primary accent" type="submit" disabled={loading}>
           <Icon.Plus size={14} /> {loading ? 'Adding…' : 'Add to tracker'}
@@ -140,7 +183,6 @@ function QuickAdd({ onAdd }) {
   );
 }
 
-// Override globals so app.real.jsx picks up the real versions
 window.WeeklyGoal  = WeeklyGoal;
 window.QuickAdd    = QuickAdd;
 window.NewListings = function() { return null; };

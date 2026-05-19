@@ -1,6 +1,14 @@
-// Leaderboard table — sortable, filterable, with sparklines and current-user highlight
+// Leaderboard table — sortable, filterable, with sparklines and expandable application rows
 
 const { useState: useStateLB, useMemo: useMemoLB } = React;
+
+const STATUS_COLORS_LB = {
+  OFFER:     { bg: '#22c55e', color: '#fff' },
+  INTERVIEW: { bg: '#3b82f6', color: '#fff' },
+  PENDING:   { bg: '#f59e0b', color: '#fff' },
+  GHOSTED:   { bg: '#64748b', color: '#fff' },
+  REJECTED:  { bg: '#ef4444', color: '#fff' },
+};
 
 function Sparkline({ data, color }) {
   if (!data || data.length < 2) return null;
@@ -29,22 +37,23 @@ function initials(name) {
 }
 
 const COLUMNS = [
-  { id: 'rank', label: 'Rank', sortKey: 'score', invert: true, align: 'left' },
-  { id: 'user', label: 'User', sortKey: 'name', align: 'left' },
-  { id: 'sent', label: 'Sent', sortKey: 'sent', align: 'right' },
-  { id: 'pending', label: 'Pending', pts: '2p', sortKey: 'pending', align: 'right' },
-  { id: 'rejected', label: 'Rejected', pts: '1p', sortKey: 'rejected', align: 'right' },
-  { id: 'ghosted', label: 'Ghosted', pts: '1p', sortKey: 'ghosted', align: 'right' },
-  { id: 'interviews', label: 'Interviews', pts: '10p', sortKey: 'interviews', align: 'right' },
-  { id: 'offers', label: 'Offers', pts: '20p', sortKey: 'offers', align: 'right' },
-  { id: 'trend', label: 'Trend', align: 'right' },
-  { id: 'score', label: 'Score', sortKey: 'score', invert: true, align: 'right' },
+  { id: 'rank',       label: 'Rank',       sortKey: 'score',      invert: true, align: 'left'  },
+  { id: 'user',       label: 'User',       sortKey: 'name',                     align: 'left'  },
+  { id: 'sent',       label: 'Sent',       sortKey: 'sent',                     align: 'right' },
+  { id: 'pending',    label: 'Pending',    pts: '2p',   sortKey: 'pending',     align: 'right' },
+  { id: 'rejected',   label: 'Rejected',   pts: '−1p',  sortKey: 'rejected',   align: 'right' },
+  { id: 'ghosted',    label: 'Ghosted',    pts: '−1p',  sortKey: 'ghosted',    align: 'right' },
+  { id: 'interviews', label: 'Interviews', pts: '10p',  sortKey: 'interviews', align: 'right' },
+  { id: 'offers',     label: 'Offers',     pts: '20p',  sortKey: 'offers',     align: 'right' },
+  { id: 'trend',      label: 'Trend',                                           align: 'right' },
+  { id: 'score',      label: 'Score',      sortKey: 'score', invert: true,      align: 'right' },
 ];
 
 function Leaderboard({ currentUserId, onPickUser }) {
   const [sort, setSort] = useStateLB({ key: 'score', dir: 'desc' });
   const [query, setQuery] = useStateLB('');
   const [role, setRole] = useStateLB('All');
+  const [expandedId, setExpandedId] = useStateLB(null);
 
   const sorted = useMemoLB(() => {
     const filtered = USERS.filter(u =>
@@ -60,7 +69,6 @@ function Leaderboard({ currentUserId, onPickUser }) {
     return arr;
   }, [sort, query, role]);
 
-  // Overall rank by score (independent of filtering)
   const rankMap = useMemoLB(() => {
     const m = {};
     [...USERS].sort((a, b) => b.score - a.score).forEach((u, i) => { m[u.id] = i + 1; });
@@ -77,12 +85,16 @@ function Leaderboard({ currentUserId, onPickUser }) {
     });
   };
 
+  const toggleExpand = (id) => {
+    setExpandedId(prev => prev === id ? null : id);
+  };
+
   return (
     <div className="card">
       <div className="card-head">
         <div>
           <h3 className="card-title"><Icon.Trophy size={15} /> Leaderboard</h3>
-          <p className="card-subtitle">Score = pending·2 + rejected·1 + ghosted·1 + interview·10 + offer·20</p>
+          <p className="card-subtitle">Score = pending·2 + rejected·(−1) + ghosted·(−1) + interview·10 + offer·20</p>
         </div>
       </div>
 
@@ -127,34 +139,126 @@ function Leaderboard({ currentUserId, onPickUser }) {
             {sorted.map(u => {
               const r = rankMap[u.id];
               const rankClass = r === 1 ? 'gold' : r === 2 ? 'silver' : r === 3 ? 'bronze' : '';
+              const isExpanded = expandedId === u.id;
               return (
-                <tr key={u.id} className={u.id === currentUserId ? 'me' : ''} onClick={() => onPickUser(u.id)}>
-                  <td>
-                    <span className={`rank-badge ${rankClass}`}>{r}</span>
-                  </td>
-                  <td>
-                    <div className="user-cell">
-                      <span className="avatar" style={{ background: u.color }}>{initials(u.name)}</span>
-                      <div>
-                        <div className="uname">{u.name}{u.id === currentUserId && <span style={{ marginLeft: 6, fontSize: 10, padding: '1px 6px', background: 'var(--accent)', color: 'white', borderRadius: 999, verticalAlign: 'middle', fontWeight: 700 }}>YOU</span>}</div>
-                        <div className="urole">{u.role}</div>
+                <React.Fragment key={u.id}>
+                  <tr
+                    className={u.id === currentUserId ? 'me' : ''}
+                    onClick={() => { onPickUser(u.id); toggleExpand(u.id); }}
+                    style={{ cursor: 'pointer' }}
+                  >
+                    <td>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                        <span className={`rank-badge ${rankClass}`}>{r}</span>
+                        <span style={{ color: 'var(--text-3)', fontSize: 9, lineHeight: 1, userSelect: 'none' }}>
+                          {isExpanded ? '▲' : '▼'}
+                        </span>
                       </div>
-                    </div>
-                  </td>
-                  <td className="num">{u.sent}</td>
-                  <td className="num">{u.pending}</td>
-                  <td className="num">{u.rejected}</td>
-                  <td className="num">{u.ghosted}</td>
-                  <td className="num" style={{ color: u.interviews >= 4 ? 'var(--accent-strong)' : 'inherit', fontWeight: u.interviews >= 4 ? 700 : 400 }}>{u.interviews}</td>
-                  <td className="num" style={{ color: u.offers > 0 ? 'var(--accent-strong)' : 'inherit', fontWeight: u.offers > 0 ? 700 : 400 }}>{u.offers}</td>
-                  <td className="num"><Sparkline data={u.hist} color={u.id === currentUserId ? 'var(--accent)' : u.color} /></td>
-                  <td className="num">
-                    <div className="score-cell">
-                      <span className="score-bar"><span style={{ width: `${(u.score / maxScore) * 100}%` }}></span></span>
-                      <span className="num">{u.score}</span>
-                    </div>
-                  </td>
-                </tr>
+                    </td>
+                    <td>
+                      <div className="user-cell">
+                        <span className="avatar" style={{ background: u.color }}>{initials(u.name)}</span>
+                        <div>
+                          <div className="uname">
+                            {u.name}
+                            {u.id === currentUserId && (
+                              <span style={{ marginLeft: 6, fontSize: 10, padding: '1px 6px', background: 'var(--accent)', color: 'white', borderRadius: 999, verticalAlign: 'middle', fontWeight: 700 }}>YOU</span>
+                            )}
+                          </div>
+                          <div className="urole">{u.role}</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="num">{u.sent}</td>
+                    <td className="num">{u.pending}</td>
+                    <td className="num">{u.rejected}</td>
+                    <td className="num">{u.ghosted}</td>
+                    <td className="num" style={{ color: u.interviews >= 4 ? 'var(--accent-strong)' : 'inherit', fontWeight: u.interviews >= 4 ? 700 : 400 }}>{u.interviews}</td>
+                    <td className="num" style={{ color: u.offers > 0 ? 'var(--accent-strong)' : 'inherit', fontWeight: u.offers > 0 ? 700 : 400 }}>{u.offers}</td>
+                    <td className="num"><Sparkline data={u.hist} color={u.id === currentUserId ? 'var(--accent)' : u.color} /></td>
+                    <td className="num">
+                      <div className="score-cell">
+                        <span className="score-bar"><span style={{ width: `${maxScore > 0 ? (u.score / maxScore) * 100 : 0}%` }}></span></span>
+                        <span className="num">{u.score}</span>
+                      </div>
+                    </td>
+                  </tr>
+
+                  {isExpanded && (
+                    <tr>
+                      <td colSpan={COLUMNS.length} style={{ padding: 0, background: 'var(--surface)' }}>
+                        <div style={{ padding: '10px 20px 14px', borderTop: '1px solid var(--border)' }}>
+                          {u.applications && u.applications.length > 0 ? (
+                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                              <thead>
+                                <tr>
+                                  {['Company', 'Role', 'Status', 'Tag', 'Applied'].map((h, i) => (
+                                    <th key={h} style={{
+                                      textAlign: i === 4 ? 'right' : 'left',
+                                      padding: '3px 8px 8px',
+                                      fontWeight: 500,
+                                      color: 'var(--text-3)',
+                                      fontSize: 11,
+                                      textTransform: 'uppercase',
+                                      letterSpacing: '0.05em',
+                                      borderBottom: '1px solid var(--border)',
+                                    }}>{h}</th>
+                                  ))}
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {[...u.applications]
+                                  .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+                                  .map(app => {
+                                    const st = app.peak_status || app.status;
+                                    const sc = STATUS_COLORS_LB[st] || STATUS_COLORS_LB.PENDING;
+                                    return (
+                                      <tr key={app.application_id} style={{ borderTop: '1px solid var(--border)' }}>
+                                        <td style={{ padding: '7px 8px', fontWeight: 500 }}>
+                                          {app.job_link ? (
+                                            <a href={app.job_link} target="_blank" rel="noreferrer"
+                                               onClick={e => e.stopPropagation()}
+                                               style={{ color: 'inherit', textDecoration: 'none' }}>
+                                              {app.company_name}
+                                              <span style={{ opacity: 0.45, fontSize: 11, marginLeft: 3 }}>↗</span>
+                                            </a>
+                                          ) : app.company_name}
+                                        </td>
+                                        <td style={{ padding: '7px 8px', color: 'var(--text-2)' }}>
+                                          {app.job_title || '—'}
+                                        </td>
+                                        <td style={{ padding: '7px 8px' }}>
+                                          <span style={{
+                                            display: 'inline-block',
+                                            padding: '2px 8px',
+                                            borderRadius: 999,
+                                            background: sc.bg,
+                                            color: sc.color,
+                                            fontSize: 10,
+                                            fontWeight: 700,
+                                            letterSpacing: '0.05em',
+                                            textTransform: 'uppercase',
+                                          }}>{st}</span>
+                                        </td>
+                                        <td style={{ padding: '7px 8px', color: 'var(--text-3)', fontSize: 12 }}>
+                                          {app.tag || '—'}
+                                        </td>
+                                        <td style={{ padding: '7px 8px', color: 'var(--text-3)', fontSize: 12, textAlign: 'right', fontFamily: 'var(--font-mono)' }}>
+                                          {new Date(app.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: '2-digit' })}
+                                        </td>
+                                      </tr>
+                                    );
+                                  })}
+                              </tbody>
+                            </table>
+                          ) : (
+                            <span style={{ color: 'var(--text-3)', fontSize: 13 }}>No applications logged yet</span>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </React.Fragment>
               );
             })}
           </tbody>
@@ -162,11 +266,11 @@ function Leaderboard({ currentUserId, onPickUser }) {
       </div>
 
       <div className="points-legend">
-        <span className="pl-item">Pending = <b>2p</b></span>
-        <span className="pl-item">Rejected = <b>1p</b></span>
-        <span className="pl-item">Ghosted = <b>1p</b></span>
-        <span className="pl-item">Interview = <b>10p</b></span>
-        <span className="pl-item">Offer = <b>20p</b></span>
+        <span className="pl-item">Pending = <b>+2p</b></span>
+        <span className="pl-item">Rejected = <b>−1p</b></span>
+        <span className="pl-item">Ghosted = <b>−1p</b></span>
+        <span className="pl-item">Interview = <b>up to 15p</b></span>
+        <span className="pl-item">Offer = <b>up to 30p</b></span>
       </div>
     </div>
   );

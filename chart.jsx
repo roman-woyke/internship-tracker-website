@@ -9,12 +9,19 @@ const CHART_STYLES = [
   { id: 'bars',   label: 'Bar race' },
 ];
 
-function ScoreChart({ currentUserId, mode, setMode, range, setRange }) {
+function ScoreChart({ currentUserId, mode, setMode, range, setRange, singleUser = false }) {
   const [hovered, setHovered] = useState(null); // {x, idx}
   const [mutedIds, setMutedIds] = useState(new Set());
   const svgRef = useRef(null);
 
   const weeks = CHART_HISTORY[USERS[0].id].length;
+  // When singleUser, only show area + bars (not multi)
+  const visibleStyles = singleUser ? CHART_STYLES.filter(s => s.id !== 'multi') : CHART_STYLES;
+  // Override multi → area when singleUser
+  const effectiveMode = (singleUser && mode === 'multi') ? 'area' : mode;
+  // Only include current user when singleUser
+  const chartUsers = singleUser ? USERS.filter(u => u.id === currentUserId) : USERS;
+
   // Filter by range
   const rangeMap = { '1M': 4, '3M': weeks, '6M': weeks, 'ALL': weeks };
   const visibleWeeks = Math.min(weeks, rangeMap[range] || weeks);
@@ -27,15 +34,17 @@ function ScoreChart({ currentUserId, mode, setMode, range, setRange }) {
   const padT = 16;
   const padB = 28;
 
-  const allValues = USERS.flatMap(u => CHART_HISTORY[u.id].slice(startIdx));
+  const allValues = chartUsers.flatMap(u => CHART_HISTORY[u.id].slice(startIdx));
   const maxV = Math.max(...allValues);
-  const yMax = Math.ceil(maxV / 20) * 20;
+  const yMax = Math.max(20, Math.ceil(maxV / 20) * 20);
 
   const xOf = (i) => padL + (i / (visibleWeeks - 1)) * (W - padL - padR);
   const yOf = (v) => padT + (1 - v / yMax) * (H - padT - padB);
 
   // Sort so current user draws last (on top) in multi-line
-  const orderedUsers = [...USERS].sort((a, b) => (a.id === currentUserId ? 1 : b.id === currentUserId ? -1 : 0));
+  const orderedUsers = singleUser
+    ? chartUsers
+    : [...USERS].sort((a, b) => (a.id === currentUserId ? 1 : b.id === currentUserId ? -1 : 0));
 
   const toggleMute = (id) => {
     setMutedIds(prev => {
@@ -77,12 +86,14 @@ function ScoreChart({ currentUserId, mode, setMode, range, setRange }) {
       <div className="card-head">
         <div>
           <h3 className="card-title"><Icon.Sparkle size={15} /> Score evolution</h3>
-          <p className="card-subtitle">Weekly score across all tracked applicants — last {visibleWeeks} weeks</p>
+          <p className="card-subtitle">
+            {singleUser ? 'Your score evolution' : 'Weekly score across all tracked applicants'} — last {visibleWeeks} weeks
+          </p>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'flex-end' }}>
           <div className="chart-tabs">
-            {CHART_STYLES.map(s => (
-              <button key={s.id} className={`chart-tab ${mode === s.id ? 'active' : ''}`} onClick={() => setMode(s.id)}>{s.label}</button>
+            {visibleStyles.map(s => (
+              <button key={s.id} className={`chart-tab ${(effectiveMode === s.id || (singleUser && mode === 'multi' && s.id === 'area')) ? 'active' : ''}`} onClick={() => setMode(s.id)}>{s.label}</button>
             ))}
           </div>
           <div className="range-pills">
@@ -118,7 +129,7 @@ function ScoreChart({ currentUserId, mode, setMode, range, setRange }) {
           ))}
 
           {/* ------- MODE: multi-line ------- */}
-          {mode === 'multi' && orderedUsers.map(u => {
+          {effectiveMode === 'multi' && orderedUsers.map(u => {
             const isMe = u.id === currentUserId;
             const muted = mutedIds.has(u.id);
             return (
@@ -137,10 +148,10 @@ function ScoreChart({ currentUserId, mode, setMode, range, setRange }) {
           })}
 
           {/* ------- MODE: area focus on current user ------- */}
-          {mode === 'area' && (
+          {effectiveMode === 'area' && (
             <>
-              {/* faded other users */}
-              {orderedUsers.filter(u => u.id !== currentUserId).map(u => (
+              {/* faded other users (only in non-singleUser mode) */}
+              {!singleUser && orderedUsers.filter(u => u.id !== currentUserId).map(u => (
                 !mutedIds.has(u.id) && (
                   <path key={u.id} d={linePath(u.id)} fill="none" stroke={u.color} strokeWidth="1.3" opacity="0.28" />
                 )
@@ -161,7 +172,7 @@ function ScoreChart({ currentUserId, mode, setMode, range, setRange }) {
           )}
 
           {/* ------- MODE: bars (race style) — current week vs each user, animated rows ------- */}
-          {mode === 'bars' && (() => {
+          {effectiveMode === 'bars' && (() => {
             const barW = (W - padL - padR) / visibleWeeks * 0.55;
             return CHART_HISTORY[currentUserId].slice(startIdx).map((v, i) => {
               const x = xOf(i) - barW / 2;
@@ -180,7 +191,7 @@ function ScoreChart({ currentUserId, mode, setMode, range, setRange }) {
           {hovered && (
             <>
               <line x1={xOf(hovered.idx)} x2={xOf(hovered.idx)} y1={padT} y2={H - padB} stroke="var(--text)" strokeOpacity="0.18" strokeDasharray="2,3" />
-              {mode !== 'bars' && orderedUsers.filter(u => !mutedIds.has(u.id) && (mode === 'multi' || u.id === currentUserId)).map(u => {
+              {effectiveMode !== 'bars' && orderedUsers.filter(u => !mutedIds.has(u.id) && (effectiveMode === 'multi' || u.id === currentUserId)).map(u => {
                 const v = CHART_HISTORY[u.id][startIdx + hovered.idx];
                 return (
                   <circle key={u.id} cx={xOf(hovered.idx)} cy={yOf(v)} r={u.id === currentUserId ? 5 : 3.5} fill="var(--surface)" stroke={u.id === currentUserId ? 'var(--accent)' : u.color} strokeWidth="2" />
@@ -191,7 +202,7 @@ function ScoreChart({ currentUserId, mode, setMode, range, setRange }) {
         </svg>
 
         {hovered && (() => {
-          const list = mode === 'multi'
+          const list = effectiveMode === 'multi'
             ? [...USERS].sort((a,b) => CHART_HISTORY[b.id][startIdx + hovered.idx] - CHART_HISTORY[a.id][startIdx + hovered.idx]).slice(0, 4)
             : [USERS.find(u => u.id === currentUserId)];
           return (
@@ -210,7 +221,7 @@ function ScoreChart({ currentUserId, mode, setMode, range, setRange }) {
       </div>
 
       {/* Legend / toggle (multi mode) */}
-      {mode === 'multi' && (
+      {effectiveMode === 'multi' && (
         <div className="chart-legend">
           {USERS.map(u => {
             const muted = mutedIds.has(u.id);
@@ -224,15 +235,17 @@ function ScoreChart({ currentUserId, mode, setMode, range, setRange }) {
           })}
         </div>
       )}
-      {mode === 'area' && (
+      {effectiveMode === 'area' && (
         <div className="chart-legend">
-          <span className="legend-item me"><span className="swatch" style={{ background: 'var(--accent)' }}></span>{USERS.find(u => u.id === currentUserId).name} (focus)</span>
-          <span className="legend-item" style={{ color: 'var(--text-3)' }}>Others shown faded for comparison</span>
+          <span className="legend-item me"><span className="swatch" style={{ background: 'var(--accent)' }}></span>
+            {USERS.find(u => u.id === currentUserId)?.name}{singleUser ? '' : ' (focus)'}
+          </span>
+          {!singleUser && <span className="legend-item" style={{ color: 'var(--text-3)' }}>Others shown faded for comparison</span>}
         </div>
       )}
-      {mode === 'bars' && (
+      {effectiveMode === 'bars' && (
         <div className="chart-legend">
-          <span className="legend-item me"><span className="swatch" style={{ background: 'var(--accent)' }}></span>Weekly cumulative score · {USERS.find(u => u.id === currentUserId).name}</span>
+          <span className="legend-item me"><span className="swatch" style={{ background: 'var(--accent)' }}></span>Weekly cumulative score · {USERS.find(u => u.id === currentUserId)?.name}</span>
         </div>
       )}
     </div>
