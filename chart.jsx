@@ -104,23 +104,18 @@ function ScoreChart({ currentUserId, mode, setMode, singleUser = false }) {
 
   const handleLeave = () => setHovered(null);
 
-  const stepPath = (id) => {
+  const linePath = (id) => {
     const data = timelineFor(id);
     if (data.length < 2) return '';
-    let d = `M${xOfTime(data[0].ts).toFixed(2)},${yOf(data[0].score).toFixed(2)}`;
-    for (let i = 1; i < data.length; i++) {
-      const prev = data[i - 1];
-      const cur = data[i];
-      const x = xOfTime(cur.ts).toFixed(2);
-      d += ` L${x},${yOf(prev.score).toFixed(2)} L${x},${yOf(cur.score).toFixed(2)}`;
-    }
-    return d;
+    return data.map((p, i) =>
+      `${i === 0 ? 'M' : 'L'}${xOfTime(p.ts).toFixed(2)},${yOf(p.score).toFixed(2)}`
+    ).join(' ');
   };
 
   const areaPath = (id) => {
     const data = timelineFor(id);
     if (data.length < 2) return '';
-    const top = stepPath(id);
+    const top = linePath(id);
     const first = data[0];
     const last = data[data.length - 1];
     return `${top} L${xOfTime(last.ts).toFixed(2)},${yOf(0).toFixed(2)} L${xOfTime(first.ts).toFixed(2)},${yOf(0).toFixed(2)} Z`;
@@ -201,7 +196,7 @@ function ScoreChart({ currentUserId, mode, setMode, singleUser = false }) {
           {effectiveMode === 'multi' && orderedUsers.map(u => {
             const isMe  = u.id === currentUserId;
             const muted = mutedIds.has(u.id);
-            const lp    = stepPath(u.id);
+            const lp    = linePath(u.id);
             if (!lp) return null;
             return (
               <g key={u.id} opacity={muted ? 0.08 : 1} style={{ transition: 'opacity 0.2s' }}>
@@ -218,11 +213,11 @@ function ScoreChart({ currentUserId, mode, setMode, singleUser = false }) {
           {/* ── AREA FOCUS ── */}
           {effectiveMode === 'area' && (() => {
             const ap = areaPath(currentUserId);
-            const lp = stepPath(currentUserId);
+            const lp = linePath(currentUserId);
             return (
               <>
                 {!singleUser && orderedUsers.filter(u => u.id !== currentUserId).map(u => {
-                  const p = stepPath(u.id);
+                  const p = linePath(u.id);
                   return p && !mutedIds.has(u.id) && (
                     <path key={u.id} d={p} fill="none" stroke={u.color}
                       strokeWidth="1.3" opacity="0.28" />
