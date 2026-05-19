@@ -1,10 +1,20 @@
 // data.real.jsx — production data adapter
-// Reads window.__INIT_DATA__ (injected by PHP) and exposes the same
-// globals as data.jsx so chart.jsx / leaderboard.jsx work unchanged.
 
+// 12 distinct colors — accent green (#22c55e) intentionally excluded
+// so the current-user highlight line never clashes with an avatar color.
 const AVATAR_COLORS = [
-  "#22c55e","#f59e0b","#3b82f6","#ec4899",
-  "#8b5cf6","#06b6d4","#ef4444","#14b8a6",
+  "#f59e0b",  // amber
+  "#3b82f6",  // blue
+  "#ec4899",  // pink
+  "#8b5cf6",  // purple
+  "#06b6d4",  // cyan
+  "#ef4444",  // red
+  "#f97316",  // orange
+  "#14b8a6",  // teal
+  "#a855f7",  // violet
+  "#eab308",  // yellow
+  "#0ea5e9",  // sky
+  "#64748b",  // slate
 ];
 
 const _d = window.__INIT_DATA__ || {};
@@ -68,12 +78,26 @@ const CHART_HISTORY = (() => {
     const scoreMap = {};
     pts.forEach(p => { scoreMap[p.date] = p.score; });
 
-    // Carry forward the last known score for each date
     let lastScore = 0;
     out[u.id] = sortedDates.map(date => {
       if (scoreMap[date] !== undefined) lastScore = scoreMap[date];
       return lastScore;
     });
+  });
+
+  return out;
+})();
+
+// ── Build CHART_EVENTS (date-aligned event breakdown for node tooltips) ──────
+// Each entry is null (no events that day) or [{status, cnt}].
+const CHART_EVENTS = (() => {
+  const evByUser = _d.scoreEvents || {};
+  const dates = CHART_HISTORY.__dates;
+  const out = {};
+
+  USERS.forEach(u => {
+    const byDate = evByUser[u.id] || {};
+    out[u.id] = dates.map(date => byDate[date] || null);
   });
 
   return out;
@@ -88,5 +112,5 @@ function calcScore(u) {
 }
 
 Object.assign(window, {
-  USERS, ROLES, CHART_HISTORY, TIME_RANGES, POINTS, calcScore, BASE_PATH, CURRENT_USER,
+  USERS, ROLES, CHART_HISTORY, CHART_EVENTS, TIME_RANGES, POINTS, calcScore, BASE_PATH, CURRENT_USER,
 });

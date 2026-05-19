@@ -69,7 +69,8 @@ foreach ($pdo->query("SELECT id, tag FROM applications")->fetchAll(PDO::FETCH_AS
     $appTagLookup[$r["id"]] = $r["tag"];
 }
 
-$dailyDeltas = [];
+$dailyDeltas    = [];
+$dailyEventCnts = []; // user_id → date → status → count (for chart node tooltips)
 foreach ($pdo->query("
     SELECT user_id, application_id, status, DATE(changed_at) AS event_date
     FROM application_status_history
@@ -77,9 +78,12 @@ foreach ($pdo->query("
 ")->fetchAll(PDO::FETCH_ASSOC) as $ev) {
     $delta = scorePoints($ev["status"], $appTagLookup[$ev["application_id"]] ?? null);
     $dailyDeltas[$ev["user_id"]][$ev["event_date"]] = ($dailyDeltas[$ev["user_id"]][$ev["event_date"]] ?? 0) + $delta;
+    $dailyEventCnts[$ev["user_id"]][$ev["event_date"]][$ev["status"]] =
+        ($dailyEventCnts[$ev["user_id"]][$ev["event_date"]][$ev["status"]] ?? 0) + 1;
 }
 
 $scoreHistory = [];
+$scoreEvents  = [];
 foreach ($pdo->query("SELECT id, username FROM users ORDER BY id")->fetchAll(PDO::FETCH_ASSOC) as $u) {
     $deltas = $dailyDeltas[$u["id"]] ?? [];
     ksort($deltas);
@@ -92,6 +96,13 @@ foreach ($pdo->query("SELECT id, username FROM users ORDER BY id")->fetchAll(PDO
         $points[] = ["date" => $date, "score" => $cum];
     }
     if ($points) $scoreHistory[] = ["username" => $u["username"], "points" => $points];
+    foreach ($dailyEventCnts[$u["id"]] ?? [] as $date => $statusCounts) {
+        $evList = [];
+        foreach ($statusCounts as $status => $cnt) {
+            $evList[] = ["status" => $status, "cnt" => $cnt];
+        }
+        $scoreEvents[$u["username"]][$date] = $evList;
+    }
 }
 
 // ── 4. Current user's weekly activity ────────────────────────────────
@@ -129,6 +140,7 @@ $initData = [
     ],
     "leaderboard"  => $users,
     "scoreHistory" => $scoreHistory,
+    "scoreEvents"  => $scoreEvents,
 ];
 ?>
 <!DOCTYPE html>
