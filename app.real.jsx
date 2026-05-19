@@ -17,13 +17,13 @@ const STATUS_COLORS = {
   REJECTED:  { bg: '#ef4444', color: '#fff' },
 };
 
-// Tags ordered by importance (low → high), each with a distinct color
+// Tags ordered by importance (low -> high), colored red -> green by quality.
 const TAG_CONFIG = {
   '':                { bg: 'transparent', border: '1px solid var(--border)', color: 'var(--text-3)', label: '— none'          },
-  'MAYBE':           { bg: '#3b82f6',     border: 'none',                    color: '#fff',           label: 'Maybe'           },
-  'PROBABLY':        { bg: '#8b5cf6',     border: 'none',                    color: '#fff',           label: 'Probably'        },
-  'FOR SURE':        { bg: '#10b981',     border: 'none',                    color: '#fff',           label: 'For Sure'        },
-  'ABSOLUTE CINEMA': { bg: '#f59e0b',     border: 'none',                    color: '#1a1a1a',        label: 'Absolute Cinema' },
+  'MAYBE':           { bg: '#dc2626',     border: 'none',                    color: '#fff',           label: 'Maybe'           },
+  'PROBABLY':        { bg: '#f59e0b',     border: 'none',                    color: '#271600',        label: 'Probably'        },
+  'FOR SURE':        { bg: '#16a34a',     border: 'none',                    color: '#fff',           label: 'For Sure'        },
+  'ABSOLUTE CINEMA': { bg: '#22c55e',     border: 'none',                    color: '#052e16',        label: 'Absolute Cinema' },
 };
 
 const STATUS_EDIT_OPTIONS = ['PENDING','REJECTED','GHOSTED','INTERVIEW','OFFER'];
