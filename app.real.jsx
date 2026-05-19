@@ -397,7 +397,7 @@ function App() {
   const loggedInUser   = USERS.find(u => u.id === loggedInUserId) || USERS[0];
 
   const [currentUserId, setCurrentUserId] = useStateApp(loggedInUserId);
-  const [chartMode,     setChartMode]     = useStateApp('area');
+  const [chartMode,     setChartMode]     = useStateApp('multi');
   const [range,         setRange]         = useStateApp('3M');
 
   const current = isLeaderboard

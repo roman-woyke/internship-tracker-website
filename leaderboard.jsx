@@ -10,6 +10,13 @@ const STATUS_COLORS_LB = {
   REJECTED:  { bg: '#ef4444', color: '#fff' },
 };
 
+const TAG_CONFIG_LB = {
+  'MAYBE':           { bg: '#dc2626', color: '#fff',    label: 'Maybe'       },
+  'PROBABLY':        { bg: '#f59e0b', color: '#271600', label: 'Probably'    },
+  'FOR SURE':        { bg: '#16a34a', color: '#fff',    label: 'For Sure'    },
+  'ABSOLUTE CINEMA': { bg: '#06b6d4', color: '#042f3a', label: 'Absolute C.' },
+};
+
 function Sparkline({ data, color }) {
   if (!data || data.length < 2) return null;
   const w = 56, h = 22;
@@ -212,6 +219,7 @@ function Leaderboard({ currentUserId, onPickUser }) {
                                   .map(app => {
                                     const st = app.peak_status || app.status;
                                     const sc = STATUS_COLORS_LB[st] || STATUS_COLORS_LB.PENDING;
+                                    const tag = TAG_CONFIG_LB[app.tag];
                                     return (
                                       <tr key={app.application_id} style={{ borderTop: '1px solid var(--border)' }}>
                                         <td style={{ padding: '7px 8px', fontWeight: 500 }}>
@@ -241,7 +249,20 @@ function Leaderboard({ currentUserId, onPickUser }) {
                                           }}>{st}</span>
                                         </td>
                                         <td style={{ padding: '7px 8px', color: 'var(--text-3)', fontSize: 12 }}>
-                                          {app.tag || '—'}
+                                          {tag ? (
+                                            <span style={{
+                                              display: 'inline-block',
+                                              padding: '2px 8px',
+                                              borderRadius: 999,
+                                              background: tag.bg,
+                                              color: tag.color,
+                                              fontSize: 10,
+                                              fontWeight: 700,
+                                              letterSpacing: '0.05em',
+                                              textTransform: 'uppercase',
+                                              whiteSpace: 'nowrap',
+                                            }}>{tag.label}</span>
+                                          ) : '—'}
                                         </td>
                                         <td style={{ padding: '7px 8px', color: 'var(--text-3)', fontSize: 12, textAlign: 'right', fontFamily: 'var(--font-mono)' }}>
                                           {new Date(app.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: '2-digit' })}
