@@ -13,7 +13,19 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 
 function parseChartTime(value) {
   if (!value || value === 'Start' || value === 'Now') return null;
-  const d = new Date(String(value).replace(' ', 'T'));
+  const match = String(value).match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?/);
+  if (match) {
+    const [, year, month, day, hour, minute, second = '0'] = match;
+    return new Date(
+      Number(year),
+      Number(month) - 1,
+      Number(day),
+      Number(hour),
+      Number(minute),
+      Number(second)
+    );
+  }
+  const d = new Date(String(value));
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
@@ -61,7 +73,7 @@ function ScoreChart({ currentUserId, mode, setMode, singleUser = false }) {
   const now = Date.now();
   const minTs = allEvents.length ? Math.min(...allEvents.map(p => p.ts)) : now;
   const maxTs = allEvents.length ? Math.max(...allEvents.map(p => p.ts)) : now;
-  const domainStart = startOfDayTime(minTs);
+  const domainStart = startOfDayTime(minTs - DAY_MS);
   let domainEnd = startOfDayTime(maxTs) + DAY_MS;
   if (domainEnd <= domainStart) domainEnd = domainStart + DAY_MS;
 
@@ -73,7 +85,7 @@ function ScoreChart({ currentUserId, mode, setMode, singleUser = false }) {
     let eventIdx = 0;
     let score = 0;
     const dayAnchors = dayTicks.map(t => {
-      while (eventIdx < events.length && events[eventIdx].ts < t) {
+      while (eventIdx < events.length && events[eventIdx].ts <= t) {
         score = events[eventIdx].score;
         eventIdx++;
       }
@@ -87,7 +99,7 @@ function ScoreChart({ currentUserId, mode, setMode, singleUser = false }) {
     });
 
     return [...dayAnchors, ...events].sort((a, b) =>
-      a.ts - b.ts || (a.events ? 1 : 0) - (b.events ? 1 : 0) || String(a.key).localeCompare(String(b.key))
+      a.ts - b.ts || (a.events ? -1 : 0) - (b.events ? -1 : 0) || String(a.key).localeCompare(String(b.key))
     );
   };
 
