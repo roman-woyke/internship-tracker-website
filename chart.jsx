@@ -16,12 +16,10 @@ function fmtDate(dateStr) {
   return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
 }
 
-const RANGE_DAYS = { '1M': 30, '3M': 90, '6M': 180 };
-
 // Point values shown in tooltip (approximate — ignores tag multiplier for INTERVIEW/OFFER)
 const STATUS_PTS = { PENDING: '+2', REJECTED: '−1', GHOSTED: '−1', INTERVIEW: '~8', OFFER: '~18' };
 
-function ScoreChart({ currentUserId, mode, setMode, range, setRange, singleUser = false }) {
+function ScoreChart({ currentUserId, mode, setMode, singleUser = false }) {
   const [hovered,  setHovered]  = useState(null);
   const [mutedIds, setMutedIds] = useState(new Set());
   const svgRef = useRef(null);
@@ -33,16 +31,7 @@ function ScoreChart({ currentUserId, mode, setMode, range, setRange, singleUser 
   const effectiveMode = (singleUser && mode === 'multi') ? 'area' : mode;
   const chartUsers    = singleUser ? USERS.filter(u => u.id === currentUserId) : USERS;
 
-  // Calendar-based range → startIdx
-  const startIdx = (() => {
-    if (range === 'ALL' || !RANGE_DAYS[range] || totalPoints === 0) return 0;
-    const cutoff = new Date();
-    cutoff.setDate(cutoff.getDate() - RANGE_DAYS[range]);
-    const cutoffStr = cutoff.toISOString().slice(0, 10);
-    const idx = dates.findIndex(d => d >= cutoffStr);
-    return idx === -1 ? 0 : idx;
-  })();
-
+  const startIdx = 0;
   const visibleCount = Math.max(2, totalPoints - startIdx);
 
   const W = 720, H = 240, padL = 36, padR = 14, padT = 16, padB = 28;
@@ -94,7 +83,7 @@ function ScoreChart({ currentUserId, mode, setMode, range, setRange, singleUser 
 
   // Render per-user event nodes (visible circles only on days with events)
   const renderNodes = (u, isMe, muted) => {
-    const color = u.color;
+    const color = effectiveMode === 'multi' ? u.color : 'var(--accent)';
     return (CHART_HISTORY[u.id] || []).slice(startIdx).map((v, i) => {
       const hasEvent = !!(CHART_EVENTS?.[u.id]?.[startIdx + i]);
       const isHov    = hovered?.idx === i;
@@ -111,17 +100,13 @@ function ScoreChart({ currentUserId, mode, setMode, range, setRange, singleUser 
     });
   };
 
-  const rangeDesc = range === 'ALL'
-    ? `all ${visibleCount} days`
-    : `last ${visibleCount} day${visibleCount !== 1 ? 's' : ''}`;
-
   return (
     <div className="card chart-card">
       <div className="card-head">
         <div>
           <h3 className="card-title"><Icon.Sparkle size={15} /> Score evolution</h3>
           <p className="card-subtitle">
-            {singleUser ? 'Your score evolution' : 'Score across all tracked applicants'} — {rangeDesc}
+            {singleUser ? 'Your score evolution' : 'Score across all tracked applicants'}
           </p>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'flex-end' }}>
@@ -130,13 +115,6 @@ function ScoreChart({ currentUserId, mode, setMode, range, setRange, singleUser 
               <button key={s.id}
                 className={`chart-tab ${effectiveMode === s.id ? 'active' : ''}`}
                 onClick={() => setMode(s.id)}>{s.label}
-              </button>
-            ))}
-          </div>
-          <div className="range-pills">
-            {TIME_RANGES.map(r => (
-              <button key={r} className={`range-pill ${range === r ? 'active' : ''}`}
-                onClick={() => setRange(r)}>{r}
               </button>
             ))}
           </div>

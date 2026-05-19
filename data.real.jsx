@@ -104,7 +104,6 @@ const CHART_EVENTS = (() => {
 })();
 
 const ROLES       = ['All'];
-const TIME_RANGES = ['1M', '3M', '6M', 'ALL'];
 const POINTS      = { PENDING: 2, REJECTED: -1, GHOSTED: -1, INTERVIEW: 8, OFFER: 18 };
 
 function calcScore(u) {
@@ -112,5 +111,5 @@ function calcScore(u) {
 }
 
 Object.assign(window, {
-  USERS, ROLES, CHART_HISTORY, CHART_EVENTS, TIME_RANGES, POINTS, calcScore, BASE_PATH, CURRENT_USER,
+  USERS, ROLES, CHART_HISTORY, CHART_EVENTS, POINTS, calcScore, BASE_PATH, CURRENT_USER,
 });

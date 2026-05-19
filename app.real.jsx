@@ -398,7 +398,6 @@ function App() {
 
   const [currentUserId, setCurrentUserId] = useStateApp(loggedInUserId);
   const [chartMode,     setChartMode]     = useStateApp('multi');
-  const [range,         setRange]         = useStateApp('3M');
 
   const current = isLeaderboard
     ? (USERS.find(u => u.id === currentUserId) || USERS[0])
@@ -481,13 +480,13 @@ function App() {
       {/* ── MAIN CONTENT ── */}
       {isLeaderboard ? (
         <div className="col">
-          <ScoreChart currentUserId={currentUserId} mode={chartMode} setMode={setChartMode} range={range} setRange={setRange} />
+          <ScoreChart currentUserId={currentUserId} mode={chartMode} setMode={setChartMode} />
           <Leaderboard currentUserId={currentUserId} onPickUser={setCurrentUserId} />
         </div>
       ) : (
         <div className="dashboard-grid">
           <div className="col">
-            <ScoreChart currentUserId={loggedInUserId} singleUser={true} mode={chartMode} setMode={setChartMode} range={range} setRange={setRange} />
+            <ScoreChart currentUserId={loggedInUserId} singleUser={true} mode={chartMode} setMode={setChartMode} />
             <MyApplications user={loggedInUser} />
           </div>
           <div className="col">
