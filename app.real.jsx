@@ -17,13 +17,13 @@ const STATUS_COLORS = {
   REJECTED:  { bg: '#ef4444', color: '#fff' },
 };
 
-// Tags ordered by importance (low -> high), colored red -> green by quality.
+// Tags ordered by importance (low -> high), with the top tier in a cooler green.
 const TAG_CONFIG = {
   '':                { bg: 'transparent', border: '1px solid var(--border)', color: 'var(--text-3)', label: '— none'          },
   'MAYBE':           { bg: '#dc2626',     border: 'none',                    color: '#fff',           label: 'Maybe'           },
   'PROBABLY':        { bg: '#f59e0b',     border: 'none',                    color: '#271600',        label: 'Probably'        },
   'FOR SURE':        { bg: '#16a34a',     border: 'none',                    color: '#fff',           label: 'For Sure'        },
-  'ABSOLUTE CINEMA': { bg: '#22c55e',     border: 'none',                    color: '#052e16',        label: 'Absolute Cinema' },
+  'ABSOLUTE CINEMA': { bg: '#06b6d4',     border: 'none',                    color: '#042f3a',        label: 'Absolute Cinema' },
 };
 
 const STATUS_EDIT_OPTIONS = ['PENDING','REJECTED','GHOSTED','INTERVIEW','OFFER'];
