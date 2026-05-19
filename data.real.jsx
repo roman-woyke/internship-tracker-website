@@ -8,10 +8,10 @@ const AVATAR_COLORS = [
 ];
 
 const _d = window.__INIT_DATA__ || {};
-const BASE_PATH   = _d.basePath   || '';
+const BASE_PATH    = _d.basePath   || '';
 const CURRENT_USER = _d.currentUser || {};
 
-// Sample n evenly-spaced cumulative scores from a points array
+// Sample n evenly-spaced cumulative scores — used only for sparklines (hist)
 function samplePoints(points, n) {
   if (!points || points.length === 0) return Array(n).fill(0);
   if (points.length === 1) return Array(n).fill(points[0].score);
@@ -21,7 +21,7 @@ function samplePoints(points, n) {
   });
 }
 
-// ── Build USERS (same shape as data.jsx) ──────────────────────────────
+// ── Build USERS ──────────────────────────────────────────────────────────────
 const USERS = (_d.leaderboard || []).map((u, i) => {
   const histEntry = (_d.scoreHistory || []).find(h => h.username === u.username);
   return {
@@ -42,23 +42,49 @@ const USERS = (_d.leaderboard || []).map((u, i) => {
   };
 });
 
-// ── Build CHART_HISTORY (12 weekly snapshots per user) ────────────────
+// ── Build CHART_HISTORY (date-aligned, daily granularity) ────────────────────
+// All users share the same __dates array. Scores are carried forward from
+// the last known event so the chart accurately reflects when data was entered.
 const CHART_HISTORY = (() => {
-  const out   = {};
-  const WEEKS = 12;
-  USERS.forEach(u => {
-    const entry = (_d.scoreHistory || []).find(h => h.username === u.id);
-    out[u.id] = samplePoints(entry ? entry.points : [], WEEKS);
+  const histByUser = {};
+  (_d.scoreHistory || []).forEach(entry => {
+    histByUser[entry.username] = entry.points; // [{date: "YYYY-MM-DD", score: number}]
   });
+
+  // Union of all dates + today + yesterday (guarantees ≥2 points even with no data)
+  const allDates = new Set();
+  const todayStr     = new Date().toISOString().slice(0, 10);
+  const yesterdayStr = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+  allDates.add(todayStr);
+  allDates.add(yesterdayStr);
+  Object.values(histByUser).forEach(pts => pts.forEach(p => allDates.add(p.date)));
+
+  const sortedDates = [...allDates].sort(); // ascending "YYYY-MM-DD"
+
+  const out = { __dates: sortedDates };
+
+  USERS.forEach(u => {
+    const pts = histByUser[u.id] || [];
+    const scoreMap = {};
+    pts.forEach(p => { scoreMap[p.date] = p.score; });
+
+    // Carry forward the last known score for each date
+    let lastScore = 0;
+    out[u.id] = sortedDates.map(date => {
+      if (scoreMap[date] !== undefined) lastScore = scoreMap[date];
+      return lastScore;
+    });
+  });
+
   return out;
 })();
 
 const ROLES       = ['All'];
 const TIME_RANGES = ['1M', '3M', '6M', 'ALL'];
-const POINTS      = { PENDING: 2, REJECTED: 1, GHOSTED: 1, INTERVIEW: 5, OFFER: 18 };
+const POINTS      = { PENDING: 2, REJECTED: -1, GHOSTED: -1, INTERVIEW: 8, OFFER: 18 };
 
 function calcScore(u) {
-  return u.pending * 2 + u.rejected + u.ghosted + u.interviews * 5 + u.offers * 18;
+  return u.pending * 2 - u.rejected - u.ghosted + u.interviews * 8 + u.offers * 18;
 }
 
 Object.assign(window, {
