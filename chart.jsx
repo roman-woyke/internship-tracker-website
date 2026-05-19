@@ -1,6 +1,5 @@
-// Score evolution chart — multi-line, area-focus, bars
-// CHART_HISTORY uses a shared event axis; CHART_USER_SERIES stores per-user
-// event-only series for single-user charts.
+// Score evolution chart — multi-line, area-focus, bars.
+// Points are positioned on a real time axis; each status-history row is one node.
 
 const { useState, useRef } = React;
 
@@ -10,12 +9,28 @@ const CHART_STYLES = [
   { id: 'bars',  label: 'Bar race'   },
 ];
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+function parseChartTime(value) {
+  if (!value || value === 'Start' || value === 'Now') return null;
+  const d = new Date(String(value).replace(' ', 'T'));
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+function startOfDayTime(ms) {
+  const d = new Date(ms);
+  d.setHours(0, 0, 0, 0);
+  return d.getTime();
+}
+
 function fmtDate(dateStr) {
-  if (!dateStr) return '';
-  if (dateStr === 'Start' || dateStr === 'Now') return dateStr;
-  const d = new Date(String(dateStr).replace(' ', 'T'));
-  if (Number.isNaN(d.getTime())) return dateStr;
+  const d = parseChartTime(dateStr);
+  if (!d) return dateStr || '';
   return d.toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+}
+
+function fmtDay(ms) {
+  return new Date(ms).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
 }
 
 function fmtTag(tag) {
@@ -36,30 +51,44 @@ function ScoreChart({ currentUserId, mode, setMode, singleUser = false }) {
   const visibleStyles = singleUser ? CHART_STYLES.filter(s => s.id !== 'multi') : CHART_STYLES;
   const effectiveMode = (singleUser && mode === 'multi') ? 'area' : mode;
   const chartUsers    = singleUser ? USERS.filter(u => u.id === currentUserId) : USERS;
-  const singleSeries  = singleUser ? (CHART_USER_SERIES?.[currentUserId] || []) : null;
-  const labels        = singleSeries ? singleSeries.map(p => p.label) : (CHART_HISTORY.__dates || []);
-  const totalPoints   = labels.length;
 
-  const scoresFor = (id) => singleSeries && id === currentUserId
-    ? singleSeries.map(p => p.score)
-    : (CHART_HISTORY[id] || []);
-  const eventsFor = (id, idx) => singleSeries && id === currentUserId
-    ? (singleSeries[idx]?.events || null)
-    : (CHART_EVENTS?.[id]?.[idx] || null);
+  const rawSeries = (id) => (CHART_USER_SERIES?.[id] || [])
+    .map(p => ({ ...p, ts: parseChartTime(p.label)?.getTime() ?? null }))
+    .filter(p => p.ts !== null && p.events)
+    .sort((a, b) => a.ts - b.ts || String(a.key).localeCompare(String(b.key)));
 
-  const startIdx = 0;
-  const visibleCount = Math.max(2, totalPoints - startIdx);
+  const allEvents = chartUsers.flatMap(u => rawSeries(u.id));
+  const now = Date.now();
+  const minTs = allEvents.length ? Math.min(...allEvents.map(p => p.ts)) : now;
+  const maxTs = allEvents.length ? Math.max(...allEvents.map(p => p.ts)) : now;
+  const domainStart = startOfDayTime(minTs);
+  let domainEnd = startOfDayTime(maxTs) + DAY_MS;
+  if (domainEnd <= domainStart) domainEnd = domainStart + DAY_MS;
 
-  const W = 720, H = 240, padL = 36, padR = 14, padT = 16, padB = 28;
+  const dayTicks = [];
+  for (let t = domainStart; t <= domainEnd; t += DAY_MS) dayTicks.push(t);
 
-  const allValues = chartUsers.flatMap(u => scoresFor(u.id).slice(startIdx));
+  const timelineFor = (id) => {
+    const events = rawSeries(id);
+    const lastScore = events.length ? events[events.length - 1].score : 0;
+    return [
+      { key: '__start', ts: domainStart, score: 0, events: null, label: 'Start' },
+      ...events,
+      { key: '__end', ts: domainEnd, score: lastScore, events: null, label: 'Now' },
+    ];
+  };
+
+  const W = 720, H = 240, padL = 36, padR = 14, padT = 16, padB = 34;
+
+  const allValues = chartUsers.flatMap(u => timelineFor(u.id).map(p => p.score));
+  const minV = Math.min(0, ...allValues);
   const maxV = Math.max(0, ...allValues);
+  const yMin = Math.floor(minV / 10) * 10;
   const yMax = Math.max(20, Math.ceil(maxV / 20) * 20);
+  const ySpan = Math.max(1, yMax - yMin);
 
-  const xOf = (i) => visibleCount <= 1
-    ? padL + (W - padL - padR) / 2
-    : padL + (i / (visibleCount - 1)) * (W - padL - padR);
-  const yOf = (v) => padT + (1 - v / yMax) * (H - padT - padB);
+  const xOfTime = (ts) => padL + ((ts - domainStart) / (domainEnd - domainStart)) * (W - padL - padR);
+  const yOf = (v) => padT + (1 - ((v - yMin) / ySpan)) * (H - padT - padB);
 
   const orderedUsers = singleUser
     ? chartUsers
@@ -71,47 +100,52 @@ function ScoreChart({ currentUserId, mode, setMode, singleUser = false }) {
     return next;
   });
 
-  const xLabels   = labels.slice(startIdx).map(fmtDate);
-  const labelEvery = Math.max(1, Math.ceil(visibleCount / 8));
-  const yTicks    = [0, 0.25, 0.5, 0.75, 1].map(t => Math.round(yMax * t));
+  const yTicks = [0, 0.25, 0.5, 0.75, 1].map(t => Math.round(yMin + ySpan * t));
 
-  const handleMove = (e) => {
-    const rect = svgRef.current.getBoundingClientRect();
-    const x = ((e.clientX - rect.left) / rect.width) * W;
-    const ratio = (x - padL) / (W - padL - padR);
-    const idx = Math.max(0, Math.min(visibleCount - 1, Math.round(ratio * (visibleCount - 1))));
-    setHovered({ idx, screenX: e.clientX - rect.left });
-  };
   const handleLeave = () => setHovered(null);
 
-  const linePath = (id) => {
-    const data = scoresFor(id).slice(startIdx);
+  const stepPath = (id) => {
+    const data = timelineFor(id);
     if (data.length < 2) return '';
-    return data.map((v, i) => `${i === 0 ? 'M' : 'L'}${xOf(i).toFixed(2)},${yOf(v).toFixed(2)}`).join(' ');
+    let d = `M${xOfTime(data[0].ts).toFixed(2)},${yOf(data[0].score).toFixed(2)}`;
+    for (let i = 1; i < data.length; i++) {
+      const prev = data[i - 1];
+      const cur = data[i];
+      const x = xOfTime(cur.ts).toFixed(2);
+      d += ` L${x},${yOf(prev.score).toFixed(2)} L${x},${yOf(cur.score).toFixed(2)}`;
+    }
+    return d;
   };
 
   const areaPath = (id) => {
-    const data = scoresFor(id).slice(startIdx);
+    const data = timelineFor(id);
     if (data.length < 2) return '';
-    const top = data.map((v, i) => `${i === 0 ? 'M' : 'L'}${xOf(i).toFixed(2)},${yOf(v).toFixed(2)}`).join(' ');
-    return `${top} L${xOf(data.length-1).toFixed(2)},${yOf(0)} L${xOf(0).toFixed(2)},${yOf(0)} Z`;
+    const top = stepPath(id);
+    const first = data[0];
+    const last = data[data.length - 1];
+    return `${top} L${xOfTime(last.ts).toFixed(2)},${yOf(0).toFixed(2)} L${xOfTime(first.ts).toFixed(2)},${yOf(0).toFixed(2)} Z`;
   };
 
-  // Render per-user event nodes.
-  const renderNodes = (u, isMe, muted) => {
+  const renderNodes = (u, muted) => {
     const color = effectiveMode === 'multi' ? u.color : 'var(--accent)';
-    return scoresFor(u.id).slice(startIdx).map((v, i) => {
-      const hasEvent = !!eventsFor(u.id, startIdx + i);
-      const isHov    = hovered?.idx === i;
-      if (!hasEvent) return null;
+    return rawSeries(u.id).map(p => {
+      const x = xOfTime(p.ts);
+      const y = yOf(p.score);
+      const isHov = hovered?.userId === u.id && hovered?.key === p.key;
       return (
-        <circle key={`node-${i}`}
-          cx={xOf(i)} cy={yOf(v)}
-          r={isHov ? 5 : 3}
-          fill={isHov ? color : 'var(--surface)'}
-          stroke={color} strokeWidth="2"
-          opacity={muted ? 0 : 1}
-        />
+        <g key={p.key}
+           onMouseEnter={() => setHovered({ userId: u.id, key: p.key, point: p, x })}
+           style={{ cursor: 'pointer' }}>
+          <circle cx={x} cy={y} r="9" fill="transparent" />
+          <circle
+            cx={x} cy={y}
+            r={isHov ? 5 : 3}
+            fill={isHov ? color : 'var(--surface)'}
+            stroke={color} strokeWidth="2"
+            opacity={muted ? 0 : 1}
+            pointerEvents="none"
+          />
+        </g>
       );
     });
   };
@@ -140,7 +174,7 @@ function ScoreChart({ currentUserId, mode, setMode, singleUser = false }) {
       <div className="chart-svg-wrap">
         <svg ref={svgRef} viewBox={`0 0 ${W} ${H}`} width="100%"
           preserveAspectRatio="none"
-          onMouseMove={handleMove} onMouseLeave={handleLeave}
+          onMouseLeave={handleLeave}
           style={{ display: 'block', overflow: 'visible' }}>
 
           {/* y grid */}
@@ -153,17 +187,21 @@ function ScoreChart({ currentUserId, mode, setMode, singleUser = false }) {
             </g>
           ))}
 
-          {/* x labels */}
-          {xLabels.map((lab, i) => (i % labelEvery === 0) && (
-            <text key={i} x={xOf(i)} y={H-8} textAnchor="middle" fontSize="10"
-              fill="var(--text-3)" fontFamily="var(--font-mono)">{lab}</text>
+          {/* day-by-day x axis */}
+          {dayTicks.map(t => (
+            <g key={t}>
+              <line x1={xOfTime(t)} x2={xOfTime(t)} y1={padT} y2={H-padB}
+                stroke="var(--border)" strokeOpacity="0.55" strokeDasharray="2,6" />
+              <text x={xOfTime(t)} y={H-10} textAnchor="middle" fontSize="9"
+                fill="var(--text-3)" fontFamily="var(--font-mono)">{fmtDay(t)}</text>
+            </g>
           ))}
 
           {/* ── MULTI-LINE ── */}
           {effectiveMode === 'multi' && orderedUsers.map(u => {
             const isMe  = u.id === currentUserId;
             const muted = mutedIds.has(u.id);
-            const lp    = linePath(u.id);
+            const lp    = stepPath(u.id);
             if (!lp) return null;
             return (
               <g key={u.id} opacity={muted ? 0.08 : 1} style={{ transition: 'opacity 0.2s' }}>
@@ -172,7 +210,7 @@ function ScoreChart({ currentUserId, mode, setMode, singleUser = false }) {
                   strokeWidth={isMe ? 3 : 1.7}
                   strokeLinecap="round" strokeLinejoin="round"
                   opacity={isMe ? 1 : 0.7} />
-                {renderNodes(u, isMe, muted)}
+                {renderNodes(u, muted)}
               </g>
             );
           })}
@@ -180,11 +218,11 @@ function ScoreChart({ currentUserId, mode, setMode, singleUser = false }) {
           {/* ── AREA FOCUS ── */}
           {effectiveMode === 'area' && (() => {
             const ap = areaPath(currentUserId);
-            const lp = linePath(currentUserId);
+            const lp = stepPath(currentUserId);
             return (
               <>
                 {!singleUser && orderedUsers.filter(u => u.id !== currentUserId).map(u => {
-                  const p = linePath(u.id);
+                  const p = stepPath(u.id);
                   return p && !mutedIds.has(u.id) && (
                     <path key={u.id} d={p} fill="none" stroke={u.color}
                       strokeWidth="1.3" opacity="0.28" />
@@ -199,27 +237,28 @@ function ScoreChart({ currentUserId, mode, setMode, singleUser = false }) {
                 {ap && <path d={ap} fill="url(#areaFill)" />}
                 {lp && <path d={lp} fill="none" stroke="var(--accent)"
                   strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />}
-                {renderNodes(USERS.find(u => u.id === currentUserId) || { id: currentUserId }, true, false)}
+                {renderNodes(USERS.find(u => u.id === currentUserId) || { id: currentUserId }, false)}
               </>
             );
           })()}
 
           {/* ── BARS ── */}
           {effectiveMode === 'bars' && (() => {
-            const barW = (W - padL - padR) / visibleCount * 0.55;
-            return scoresFor(currentUserId).slice(startIdx).map((v, i) => {
-              const x = xOf(i) - barW / 2;
-              const y = yOf(v);
-              const h = Math.max(0, (H - padT - padB) - (y - padT));
+            const eventPoints = rawSeries(currentUserId);
+            const barW = Math.max(3, Math.min(20, (W - padL - padR) / Math.max(1, dayTicks.length) * 0.18));
+            return eventPoints.map(p => {
+              const x = xOfTime(p.ts) - barW / 2;
+              const y = yOf(Math.max(0, p.score));
+              const yZero = yOf(0);
+              const h = Math.abs(yZero - yOf(p.score));
+              const isHov = hovered?.userId === currentUserId && hovered?.key === p.key;
               return (
-                <g key={i}>
-                  <rect x={x} y={y} width={barW} height={h} rx="4"
+                <g key={p.key}
+                   onMouseEnter={() => setHovered({ userId: currentUserId, key: p.key, point: p, x: xOfTime(p.ts) })}
+                   style={{ cursor: 'pointer' }}>
+                  <rect x={x} y={Math.min(y, yZero)} width={barW} height={Math.max(2, h)} rx="4"
                     fill="var(--accent)"
-                    opacity={hovered?.idx === i ? 1 : 0.85} />
-                  {h > 14 && (
-                    <text x={xOf(i)} y={y-5} textAnchor="middle" fontSize="9.5"
-                      fontFamily="var(--font-mono)" fill="var(--text-2)">{v}</text>
-                  )}
+                    opacity={isHov ? 1 : 0.85} />
                 </g>
               );
             });
@@ -227,63 +266,47 @@ function ScoreChart({ currentUserId, mode, setMode, singleUser = false }) {
 
           {/* hover line */}
           {hovered && (
-            <line x1={xOf(hovered.idx)} x2={xOf(hovered.idx)} y1={padT} y2={H-padB}
+            <line x1={hovered.x} x2={hovered.x} y1={padT} y2={H-padB}
               stroke="var(--text)" strokeOpacity="0.18" strokeDasharray="2,3" />
           )}
         </svg>
 
         {/* ── TOOLTIP ── */}
         {hovered && (() => {
-          const absIdx   = startIdx + hovered.idx;
-          const dateLabel = fmtDate(labels[absIdx]);
-
-          const eventUsers = USERS.filter(u => eventsFor(u.id, absIdx));
-          const focusedUser = USERS.find(u => u.id === currentUserId);
-          const list = effectiveMode === 'multi'
-            ? eventUsers
-            : (focusedUser && eventsFor(focusedUser.id, absIdx) ? [focusedUser] : []);
-
-          if (list.length === 0) return null;
+          const u = USERS.find(user => user.id === hovered.userId);
+          const point = hovered.point;
+          const events = point?.events;
+          if (!u || !events) return null;
+          const delta = events.reduce((sum, ev) => sum + (Number(ev.delta) || 0), 0);
+          const isMe = u.id === currentUserId;
 
           return (
             <div className="chart-tip"
-              style={{ left: (hovered.screenX / svgRef.current.getBoundingClientRect().width) * 100 + '%', top: 8 }}>
-              <div style={{ fontWeight: 700, opacity: 0.8, marginBottom: 4 }}>{dateLabel}</div>
-              {list.map(u => {
-                const scores    = scoresFor(u.id);
-                const score     = scores[absIdx] ?? 0;
-                const prevScore = absIdx > 0 ? (scores[absIdx - 1] ?? 0) : 0;
-                const events    = eventsFor(u.id, absIdx);
-                const delta     = events?.reduce((sum, ev) => sum + (Number(ev.delta) || 0), 0) ?? (score - prevScore);
-                const isMe      = u.id === currentUserId;
-                return (
-                  <div key={u.id} style={{ marginBottom: 5 }}>
-                    <div className="row">
-                      <span className="d" style={{ background: effectiveMode === 'multi' ? u.color : 'var(--accent)' }}></span>
-                      <span style={{ fontWeight: isMe ? 700 : 400 }}>{u.name}</span>
-                      <span style={{ marginLeft: 'auto', fontWeight: 700 }}>{score}</span>
-                      {delta !== 0 && (
-                        <span style={{
-                          marginLeft: 5, fontSize: 10, fontWeight: 600,
-                          color: delta > 0 ? '#22c55e' : '#ef4444',
-                        }}>
-                          {delta > 0 ? '+' : ''}{delta}
-                        </span>
-                      )}
-                    </div>
-                    {events && (
-                      <div style={{ paddingLeft: 14, marginTop: 2, display: 'flex', flexDirection: 'column', gap: 1 }}>
-                        {events.map((ev, j) => (
-                          <span key={j} style={{ fontSize: 10, color: 'var(--text-3)' }}>
-                            {ev.company ? `${ev.company}: ` : ''}{ev.status}
-                            {ev.tag ? ` · ${fmtTag(ev.tag)}` : ''} ({signedPoints(ev.delta)})
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
+              style={{ left: (hovered.x / W) * 100 + '%', top: 8 }}>
+              <div style={{ fontWeight: 700, opacity: 0.8, marginBottom: 4 }}>{fmtDate(point.label)}</div>
+              <div style={{ marginBottom: 5 }}>
+                <div className="row">
+                  <span className="d" style={{ background: effectiveMode === 'multi' ? u.color : 'var(--accent)' }}></span>
+                  <span style={{ fontWeight: isMe ? 700 : 400 }}>{u.name}</span>
+                  <span style={{ marginLeft: 'auto', fontWeight: 700 }}>{point.score}</span>
+                  {delta !== 0 && (
+                    <span style={{
+                      marginLeft: 5, fontSize: 10, fontWeight: 600,
+                      color: delta > 0 ? '#22c55e' : '#ef4444',
+                    }}>
+                      {delta > 0 ? '+' : ''}{delta}
+                    </span>
+                  )}
+                </div>
+                <div style={{ paddingLeft: 14, marginTop: 2, display: 'flex', flexDirection: 'column', gap: 1 }}>
+                  {events.map((ev, j) => (
+                    <span key={j} style={{ fontSize: 10, color: 'var(--text-3)' }}>
+                      {ev.company ? `${ev.company}: ` : ''}{ev.status}
+                      {ev.tag ? ` · ${fmtTag(ev.tag)}` : ''} ({signedPoints(ev.delta)})
+                    </span>
+                  ))}
+                </div>
+              </div>
             </div>
           );
         })()}
