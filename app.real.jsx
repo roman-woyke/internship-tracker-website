@@ -189,8 +189,8 @@ function MyApplications({ user }) {
       <div style={{ overflowX: 'auto' }}>
         <table className="lb-table">
           <colgroup>
+            <col style={{ width: '24%' }} />
             <col />
-            <col style={{ width: '30%' }} />
             <col style={{ width: 96 }} />
             <col style={{ width: 116 }} />
             <col style={{ width: 84 }} />
