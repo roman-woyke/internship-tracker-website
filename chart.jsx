@@ -1,6 +1,6 @@
 // Score evolution chart — multi-line, area-focus, bars
-// CHART_HISTORY.__dates = sorted "YYYY-MM-DD" array (daily granularity)
-// CHART_EVENTS[userId][dateIdx] = null | [{status, cnt}]
+// CHART_HISTORY uses a shared event axis; CHART_USER_SERIES stores per-user
+// event-only series for single-user charts.
 
 const { useState, useRef } = React;
 
@@ -12,31 +12,47 @@ const CHART_STYLES = [
 
 function fmtDate(dateStr) {
   if (!dateStr) return '';
-  const d = new Date(dateStr + 'T00:00:00');
-  return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+  if (dateStr === 'Start' || dateStr === 'Now') return dateStr;
+  const d = new Date(String(dateStr).replace(' ', 'T'));
+  if (Number.isNaN(d.getTime())) return dateStr;
+  return d.toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 }
 
-// Point values shown in tooltip (approximate — ignores tag multiplier for INTERVIEW/OFFER)
-const STATUS_PTS = { PENDING: '+2', REJECTED: '−1', GHOSTED: '−1', INTERVIEW: '~8', OFFER: '~18' };
+function fmtTag(tag) {
+  if (!tag) return '';
+  return tag.toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
+}
+
+function signedPoints(delta) {
+  const n = Number(delta) || 0;
+  return `${n > 0 ? '+' : ''}${n}p`;
+}
 
 function ScoreChart({ currentUserId, mode, setMode, singleUser = false }) {
   const [hovered,  setHovered]  = useState(null);
   const [mutedIds, setMutedIds] = useState(new Set());
   const svgRef = useRef(null);
 
-  const dates       = CHART_HISTORY.__dates || [];
-  const totalPoints = dates.length;
-
   const visibleStyles = singleUser ? CHART_STYLES.filter(s => s.id !== 'multi') : CHART_STYLES;
   const effectiveMode = (singleUser && mode === 'multi') ? 'area' : mode;
   const chartUsers    = singleUser ? USERS.filter(u => u.id === currentUserId) : USERS;
+  const singleSeries  = singleUser ? (CHART_USER_SERIES?.[currentUserId] || []) : null;
+  const labels        = singleSeries ? singleSeries.map(p => p.label) : (CHART_HISTORY.__dates || []);
+  const totalPoints   = labels.length;
+
+  const scoresFor = (id) => singleSeries && id === currentUserId
+    ? singleSeries.map(p => p.score)
+    : (CHART_HISTORY[id] || []);
+  const eventsFor = (id, idx) => singleSeries && id === currentUserId
+    ? (singleSeries[idx]?.events || null)
+    : (CHART_EVENTS?.[id]?.[idx] || null);
 
   const startIdx = 0;
   const visibleCount = Math.max(2, totalPoints - startIdx);
 
   const W = 720, H = 240, padL = 36, padR = 14, padT = 16, padB = 28;
 
-  const allValues = chartUsers.flatMap(u => (CHART_HISTORY[u.id] || []).slice(startIdx));
+  const allValues = chartUsers.flatMap(u => scoresFor(u.id).slice(startIdx));
   const maxV = Math.max(0, ...allValues);
   const yMax = Math.max(20, Math.ceil(maxV / 20) * 20);
 
@@ -55,7 +71,7 @@ function ScoreChart({ currentUserId, mode, setMode, singleUser = false }) {
     return next;
   });
 
-  const xLabels   = dates.slice(startIdx).map(fmtDate);
+  const xLabels   = labels.slice(startIdx).map(fmtDate);
   const labelEvery = Math.max(1, Math.ceil(visibleCount / 8));
   const yTicks    = [0, 0.25, 0.5, 0.75, 1].map(t => Math.round(yMax * t));
 
@@ -69,25 +85,25 @@ function ScoreChart({ currentUserId, mode, setMode, singleUser = false }) {
   const handleLeave = () => setHovered(null);
 
   const linePath = (id) => {
-    const data = (CHART_HISTORY[id] || []).slice(startIdx);
+    const data = scoresFor(id).slice(startIdx);
     if (data.length < 2) return '';
     return data.map((v, i) => `${i === 0 ? 'M' : 'L'}${xOf(i).toFixed(2)},${yOf(v).toFixed(2)}`).join(' ');
   };
 
   const areaPath = (id) => {
-    const data = (CHART_HISTORY[id] || []).slice(startIdx);
+    const data = scoresFor(id).slice(startIdx);
     if (data.length < 2) return '';
     const top = data.map((v, i) => `${i === 0 ? 'M' : 'L'}${xOf(i).toFixed(2)},${yOf(v).toFixed(2)}`).join(' ');
     return `${top} L${xOf(data.length-1).toFixed(2)},${yOf(0)} L${xOf(0).toFixed(2)},${yOf(0)} Z`;
   };
 
-  // Render per-user event nodes (visible circles only on days with events)
+  // Render per-user event nodes.
   const renderNodes = (u, isMe, muted) => {
     const color = effectiveMode === 'multi' ? u.color : 'var(--accent)';
-    return (CHART_HISTORY[u.id] || []).slice(startIdx).map((v, i) => {
-      const hasEvent = !!(CHART_EVENTS?.[u.id]?.[startIdx + i]);
+    return scoresFor(u.id).slice(startIdx).map((v, i) => {
+      const hasEvent = !!eventsFor(u.id, startIdx + i);
       const isHov    = hovered?.idx === i;
-      if (!hasEvent && !isHov) return null;
+      if (!hasEvent) return null;
       return (
         <circle key={`node-${i}`}
           cx={xOf(i)} cy={yOf(v)}
@@ -137,7 +153,7 @@ function ScoreChart({ currentUserId, mode, setMode, singleUser = false }) {
             </g>
           ))}
 
-          {/* x labels — actual dates */}
+          {/* x labels */}
           {xLabels.map((lab, i) => (i % labelEvery === 0) && (
             <text key={i} x={xOf(i)} y={H-8} textAnchor="middle" fontSize="10"
               fill="var(--text-3)" fontFamily="var(--font-mono)">{lab}</text>
@@ -191,7 +207,7 @@ function ScoreChart({ currentUserId, mode, setMode, singleUser = false }) {
           {/* ── BARS ── */}
           {effectiveMode === 'bars' && (() => {
             const barW = (W - padL - padR) / visibleCount * 0.55;
-            return (CHART_HISTORY[currentUserId] || []).slice(startIdx).map((v, i) => {
+            return scoresFor(currentUserId).slice(startIdx).map((v, i) => {
               const x = xOf(i) - barW / 2;
               const y = yOf(v);
               const h = Math.max(0, (H - padT - padB) - (y - padT));
@@ -219,28 +235,31 @@ function ScoreChart({ currentUserId, mode, setMode, singleUser = false }) {
         {/* ── TOOLTIP ── */}
         {hovered && (() => {
           const absIdx   = startIdx + hovered.idx;
-          const dateLabel = fmtDate(dates[absIdx]);
+          const dateLabel = fmtDate(labels[absIdx]);
 
+          const eventUsers = USERS.filter(u => eventsFor(u.id, absIdx));
+          const focusedUser = USERS.find(u => u.id === currentUserId);
           const list = effectiveMode === 'multi'
-            ? [...USERS]
-                .sort((a,b) => (CHART_HISTORY[b.id]?.[absIdx] || 0) - (CHART_HISTORY[a.id]?.[absIdx] || 0))
-                .slice(0, 4)
-            : [USERS.find(u => u.id === currentUserId)].filter(Boolean);
+            ? eventUsers
+            : (focusedUser && eventsFor(focusedUser.id, absIdx) ? [focusedUser] : []);
+
+          if (list.length === 0) return null;
 
           return (
             <div className="chart-tip"
               style={{ left: (hovered.screenX / svgRef.current.getBoundingClientRect().width) * 100 + '%', top: 8 }}>
               <div style={{ fontWeight: 700, opacity: 0.8, marginBottom: 4 }}>{dateLabel}</div>
               {list.map(u => {
-                const score     = CHART_HISTORY[u.id]?.[absIdx] ?? 0;
-                const prevScore = absIdx > 0 ? (CHART_HISTORY[u.id]?.[absIdx - 1] ?? 0) : 0;
-                const delta     = score - prevScore;
-                const events    = CHART_EVENTS?.[u.id]?.[absIdx];
+                const scores    = scoresFor(u.id);
+                const score     = scores[absIdx] ?? 0;
+                const prevScore = absIdx > 0 ? (scores[absIdx - 1] ?? 0) : 0;
+                const events    = eventsFor(u.id, absIdx);
+                const delta     = events?.reduce((sum, ev) => sum + (Number(ev.delta) || 0), 0) ?? (score - prevScore);
                 const isMe      = u.id === currentUserId;
                 return (
                   <div key={u.id} style={{ marginBottom: 5 }}>
                     <div className="row">
-                      <span className="d" style={{ background: u.color }}></span>
+                      <span className="d" style={{ background: effectiveMode === 'multi' ? u.color : 'var(--accent)' }}></span>
                       <span style={{ fontWeight: isMe ? 700 : 400 }}>{u.name}</span>
                       <span style={{ marginLeft: 'auto', fontWeight: 700 }}>{score}</span>
                       {delta !== 0 && (
@@ -256,8 +275,8 @@ function ScoreChart({ currentUserId, mode, setMode, singleUser = false }) {
                       <div style={{ paddingLeft: 14, marginTop: 2, display: 'flex', flexDirection: 'column', gap: 1 }}>
                         {events.map((ev, j) => (
                           <span key={j} style={{ fontSize: 10, color: 'var(--text-3)' }}>
-                            {ev.status} ×{ev.cnt}
-                            {STATUS_PTS[ev.status] ? ` (${STATUS_PTS[ev.status]}p each)` : ''}
+                            {ev.company ? `${ev.company}: ` : ''}{ev.status}
+                            {ev.tag ? ` · ${fmtTag(ev.tag)}` : ''} ({signedPoints(ev.delta)})
                           </span>
                         ))}
                       </div>

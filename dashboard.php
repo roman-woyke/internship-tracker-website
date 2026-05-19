@@ -64,44 +64,50 @@ foreach ($users as &$u) {
 unset($u);
 
 // ── 3. Score history (for chart) ──────────────────────────────────────
-$appTagLookup = [];
-foreach ($pdo->query("SELECT id, tag FROM applications")->fetchAll(PDO::FETCH_ASSOC) as $r) {
-    $appTagLookup[$r["id"]] = $r["tag"];
-}
+$historyByUser = [];
+$eventsByUser  = [];
+$eventOrder    = 0;
 
-$dailyDeltas    = [];
-$dailyEventCnts = []; // user_id → date → status → count (for chart node tooltips)
 foreach ($pdo->query("
-    SELECT user_id, application_id, status, DATE(changed_at) AS event_date
-    FROM application_status_history
-    ORDER BY changed_at ASC
+    SELECT h.id, h.user_id, h.application_id, h.status, h.changed_at,
+           a.company_name, a.tag
+    FROM application_status_history h
+    JOIN applications a ON a.id = h.application_id
+    ORDER BY h.changed_at ASC, h.id ASC
 ")->fetchAll(PDO::FETCH_ASSOC) as $ev) {
-    $delta = scorePoints($ev["status"], $appTagLookup[$ev["application_id"]] ?? null);
-    $dailyDeltas[$ev["user_id"]][$ev["event_date"]] = ($dailyDeltas[$ev["user_id"]][$ev["event_date"]] ?? 0) + $delta;
-    $dailyEventCnts[$ev["user_id"]][$ev["event_date"]][$ev["status"]] =
-        ($dailyEventCnts[$ev["user_id"]][$ev["event_date"]][$ev["status"]] ?? 0) + 1;
+    $uid      = $ev["user_id"];
+    $eventKey = "event-" . $ev["id"];
+    $delta    = scorePoints($ev["status"], $ev["tag"] ?? null);
+
+    $historyByUser[$uid]["score"] = ($historyByUser[$uid]["score"] ?? 0) + $delta;
+    $historyByUser[$uid]["points"][] = [
+        "key"   => $eventKey,
+        "order" => $eventOrder,
+        "time"  => $ev["changed_at"],
+        "score" => $historyByUser[$uid]["score"],
+    ];
+
+    $eventsByUser[$uid][$eventKey] = [[
+        "status"  => $ev["status"],
+        "tag"     => $ev["tag"],
+        "company" => $ev["company_name"],
+        "delta"   => $delta,
+    ]];
+
+    $eventOrder++;
 }
 
 $scoreHistory = [];
 $scoreEvents  = [];
 foreach ($pdo->query("SELECT id, username FROM users ORDER BY id")->fetchAll(PDO::FETCH_ASSOC) as $u) {
-    $deltas = $dailyDeltas[$u["id"]] ?? [];
-    ksort($deltas);
-    $cum = 0; $points = [];
-    if ($deltas) {
-        $points[] = ["date" => date("Y-m-d", strtotime(array_key_first($deltas) . " -1 day")), "score" => 0];
+    if (!empty($historyByUser[$u["id"]]["points"])) {
+        $scoreHistory[] = [
+            "username" => $u["username"],
+            "points"   => $historyByUser[$u["id"]]["points"],
+        ];
     }
-    foreach ($deltas as $date => $delta) {
-        $cum += $delta;
-        $points[] = ["date" => $date, "score" => $cum];
-    }
-    if ($points) $scoreHistory[] = ["username" => $u["username"], "points" => $points];
-    foreach ($dailyEventCnts[$u["id"]] ?? [] as $date => $statusCounts) {
-        $evList = [];
-        foreach ($statusCounts as $status => $cnt) {
-            $evList[] = ["status" => $status, "cnt" => $cnt];
-        }
-        $scoreEvents[$u["username"]][$date] = $evList;
+    if (!empty($eventsByUser[$u["id"]])) {
+        $scoreEvents[$u["username"]] = $eventsByUser[$u["id"]];
     }
 }
 

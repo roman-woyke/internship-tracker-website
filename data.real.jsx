@@ -52,35 +52,52 @@ const USERS = (_d.leaderboard || []).map((u, i) => {
   };
 });
 
-// ── Build CHART_HISTORY (date-aligned, daily granularity) ────────────────────
-// All users share the same __dates array. Scores are carried forward from
-// the last known event so the chart accurately reflects when data was entered.
+// ── Build chart series from individual score events ──────────────────────────
+// Each status-history row is one point. The leaderboard chart uses a global
+// event axis, while the dashboard can use each user's own event-only series.
 const CHART_HISTORY = (() => {
   const histByUser = {};
+  const eventMeta = new Map();
   (_d.scoreHistory || []).forEach(entry => {
-    histByUser[entry.username] = entry.points; // [{date: "YYYY-MM-DD", score: number}]
+    histByUser[entry.username] = (entry.points || []).map((p, idx) => {
+      const key = p.key || p.date || `${entry.username}-${idx}`;
+      const point = {
+        key,
+        order: Number.isFinite(Number(p.order)) ? Number(p.order) : idx,
+        label: p.time || p.date || key,
+        score: Number(p.score) || 0,
+      };
+      eventMeta.set(key, {
+        key,
+        order: point.order,
+        label: point.label,
+      });
+      return point;
+    });
   });
 
-  // Union of all dates + today + yesterday (guarantees ≥2 points even with no data)
-  const allDates = new Set();
-  const todayStr     = new Date().toISOString().slice(0, 10);
-  const yesterdayStr = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
-  allDates.add(todayStr);
-  allDates.add(yesterdayStr);
-  Object.values(histByUser).forEach(pts => pts.forEach(p => allDates.add(p.date)));
+  eventMeta.set('__start', { key: '__start', order: -1, label: 'Start' });
+  if (eventMeta.size === 1) {
+    eventMeta.set('__empty', { key: '__empty', order: 0, label: 'Now' });
+  }
 
-  const sortedDates = [...allDates].sort(); // ascending "YYYY-MM-DD"
+  const sortedEvents = [...eventMeta.values()].sort((a, b) =>
+    a.order - b.order || a.key.localeCompare(b.key)
+  );
 
-  const out = { __dates: sortedDates };
+  const out = {
+    __keys: sortedEvents.map(p => p.key),
+    __dates: sortedEvents.map(p => p.label),
+  };
 
   USERS.forEach(u => {
     const pts = histByUser[u.id] || [];
     const scoreMap = {};
-    pts.forEach(p => { scoreMap[p.date] = p.score; });
+    pts.forEach(p => { scoreMap[p.key] = p.score; });
 
     let lastScore = 0;
-    out[u.id] = sortedDates.map(date => {
-      if (scoreMap[date] !== undefined) lastScore = scoreMap[date];
+    out[u.id] = sortedEvents.map(point => {
+      if (scoreMap[point.key] !== undefined) lastScore = scoreMap[point.key];
       return lastScore;
     });
   });
@@ -88,18 +105,46 @@ const CHART_HISTORY = (() => {
   return out;
 })();
 
-// ── Build CHART_EVENTS (date-aligned event breakdown for node tooltips) ──────
-// Each entry is null (no events that day) or [{status, cnt}].
+// ── Build CHART_EVENTS (global event-axis tooltip data) ──────────────────────
+// Each entry is null or the exact score event(s) for that axis point.
 const CHART_EVENTS = (() => {
   const evByUser = _d.scoreEvents || {};
-  const dates = CHART_HISTORY.__dates;
+  const keys = CHART_HISTORY.__keys;
   const out = {};
 
   USERS.forEach(u => {
-    const byDate = evByUser[u.id] || {};
-    out[u.id] = dates.map(date => byDate[date] || null);
+    const byKey = evByUser[u.id] || {};
+    out[u.id] = keys.map(key => byKey[key] || null);
   });
 
+  return out;
+})();
+
+const CHART_USER_SERIES = (() => {
+  const histByUser = {};
+  (_d.scoreHistory || []).forEach(entry => {
+    histByUser[entry.username] = (entry.points || []).map((p, idx) => ({
+      key: p.key || p.date || `${entry.username}-${idx}`,
+      order: Number.isFinite(Number(p.order)) ? Number(p.order) : idx,
+      label: p.time || p.date || p.key || `${entry.username}-${idx}`,
+      score: Number(p.score) || 0,
+    })).sort((a, b) => a.order - b.order || a.key.localeCompare(b.key));
+  });
+
+  const evByUser = _d.scoreEvents || {};
+  const out = {};
+  USERS.forEach(u => {
+    const points = [
+      { key: '__start', order: -1, label: 'Start', score: 0 },
+      ...(histByUser[u.id] || []),
+    ];
+    if (points.length === 1) points.push({ key: '__empty', order: 0, label: 'Now', score: 0 });
+    const byKey = evByUser[u.id] || {};
+    out[u.id] = points.map(point => ({
+      ...point,
+      events: byKey[point.key] || null,
+    }));
+  });
   return out;
 })();
 
@@ -111,5 +156,5 @@ function calcScore(u) {
 }
 
 Object.assign(window, {
-  USERS, ROLES, CHART_HISTORY, CHART_EVENTS, POINTS, calcScore, BASE_PATH, CURRENT_USER,
+  USERS, ROLES, CHART_HISTORY, CHART_EVENTS, CHART_USER_SERIES, POINTS, calcScore, BASE_PATH, CURRENT_USER,
 });
