@@ -187,10 +187,10 @@ function MyApplications({ user }) {
       </div></div>
 
       <div style={{ overflowX: 'auto' }}>
-        <table className="lb-table">
+        <table className="lb-table" style={{ tableLayout: 'fixed' }}>
           <colgroup>
-            <col style={{ width: '24%' }} />
-            <col />
+            <col style={{ width: '18%' }} />
+            <col style={{ width: '42%' }} />
             <col style={{ width: 96 }} />
             <col style={{ width: 116 }} />
             <col style={{ width: 84 }} />
@@ -221,10 +221,10 @@ function MyApplications({ user }) {
                 <React.Fragment key={appId}>
                   <tr>
                     {/* Company */}
-                    <td style={{ fontWeight: 500 }}>
+                    <td style={{ fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {app.job_link
                         ? <a href={app.job_link} target="_blank" rel="noreferrer"
-                             style={{ color: 'inherit', textDecoration: 'none' }}>
+                             style={{ color: 'inherit', textDecoration: 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'inline-block', maxWidth: '100%' }}>
                             {app.company_name}<span style={{ opacity: 0.4, fontSize: 11, marginLeft: 3 }}>↗</span>
                           </a>
                         : app.company_name}
