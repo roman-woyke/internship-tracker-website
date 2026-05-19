@@ -70,12 +70,25 @@ function ScoreChart({ currentUserId, mode, setMode, singleUser = false }) {
 
   const timelineFor = (id) => {
     const events = rawSeries(id);
-    const lastScore = events.length ? events[events.length - 1].score : 0;
-    return [
-      { key: '__start', ts: domainStart, score: 0, events: null, label: 'Start' },
-      ...events,
-      { key: '__end', ts: domainEnd, score: lastScore, events: null, label: 'Now' },
-    ];
+    let eventIdx = 0;
+    let score = 0;
+    const dayAnchors = dayTicks.map(t => {
+      while (eventIdx < events.length && events[eventIdx].ts < t) {
+        score = events[eventIdx].score;
+        eventIdx++;
+      }
+      return {
+        key: `day-${t}`,
+        ts: t,
+        score,
+        events: null,
+        label: fmtDay(t),
+      };
+    });
+
+    return [...dayAnchors, ...events].sort((a, b) =>
+      a.ts - b.ts || (a.events ? 1 : 0) - (b.events ? 1 : 0) || String(a.key).localeCompare(String(b.key))
+    );
   };
 
   const W = 720, H = 240, padL = 36, padR = 14, padT = 16, padB = 34;
