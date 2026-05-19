@@ -64,12 +64,28 @@ function ScoreChart({ currentUserId, mode, setMode, singleUser = false }) {
   const effectiveMode = (singleUser && mode === 'multi') ? 'area' : mode;
   const chartUsers    = singleUser ? USERS.filter(u => u.id === currentUserId) : USERS;
 
-  const rawSeries = (id) => (CHART_USER_SERIES?.[id] || [])
-    .map(p => ({ ...p, ts: parseChartTime(p.label)?.getTime() ?? null }))
-    .filter(p => p.ts !== null && p.events)
-    .sort((a, b) => a.ts - b.ts || String(a.key).localeCompare(String(b.key)));
+  const rawSeries = (id) => {
+    const expanded = [];
+    (CHART_USER_SERIES?.[id] || []).forEach(p => {
+      const ts = parseChartTime(p.label)?.getTime() ?? null;
+      if (ts === null || !p.events) return;
+      p.events.forEach((event, eventIdx) => {
+        expanded.push({
+          ...p,
+          key: `${p.key}-${eventIdx}`,
+          ts,
+          events: [event],
+        });
+      });
+    });
+    return expanded.sort((a, b) =>
+      a.ts - b.ts ||
+      Number(a.order ?? 0) - Number(b.order ?? 0) ||
+      String(a.key).localeCompare(String(b.key))
+    );
+  };
 
-  const allEvents = chartUsers.flatMap(u => rawSeries(u.id));
+  const allEvents = USERS.flatMap(u => rawSeries(u.id));
   const now = Date.now();
   const minTs = allEvents.length ? Math.min(...allEvents.map(p => p.ts)) : now;
   const maxTs = allEvents.length ? Math.max(...allEvents.map(p => p.ts)) : now;
