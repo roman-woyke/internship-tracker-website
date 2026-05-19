@@ -39,7 +39,7 @@ function badgeSty(bg, color, border) {
     display: 'inline-block', padding: '2px 8px', borderRadius: 999,
     background: bg, color, border: border || 'none',
     fontSize: 10, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase',
-    cursor: 'pointer', userSelect: 'none',
+    cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap',
   };
 }
 
@@ -188,6 +188,14 @@ function MyApplications({ user }) {
 
       <div style={{ overflowX: 'auto' }}>
         <table className="lb-table">
+          <colgroup>
+            <col />
+            <col style={{ width: '30%' }} />
+            <col style={{ width: 96 }} />
+            <col style={{ width: 116 }} />
+            <col style={{ width: 84 }} />
+            <col style={{ width: 90 }} />
+          </colgroup>
           <thead>
             <tr>
               <th>Company</th>
