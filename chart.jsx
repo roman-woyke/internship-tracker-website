@@ -94,7 +94,7 @@ function ScoreChart({ currentUserId, mode, setMode, range, setRange, singleUser 
 
   // Render per-user event nodes (visible circles only on days with events)
   const renderNodes = (u, isMe, muted) => {
-    const color = isMe ? 'var(--accent)' : u.color;
+    const color = u.color;
     return (CHART_HISTORY[u.id] || []).slice(startIdx).map((v, i) => {
       const hasEvent = !!(CHART_EVENTS?.[u.id]?.[startIdx + i]);
       const isHov    = hovered?.idx === i;
@@ -174,7 +174,7 @@ function ScoreChart({ currentUserId, mode, setMode, range, setRange, singleUser 
             return (
               <g key={u.id} opacity={muted ? 0.08 : 1} style={{ transition: 'opacity 0.2s' }}>
                 <path d={lp} fill="none"
-                  stroke={isMe ? 'var(--accent)' : u.color}
+                  stroke={u.color}
                   strokeWidth={isMe ? 3 : 1.7}
                   strokeLinecap="round" strokeLinejoin="round"
                   opacity={isMe ? 1 : 0.7} />
@@ -262,7 +262,7 @@ function ScoreChart({ currentUserId, mode, setMode, range, setRange, singleUser 
                 return (
                   <div key={u.id} style={{ marginBottom: 5 }}>
                     <div className="row">
-                      <span className="d" style={{ background: isMe ? 'var(--accent)' : u.color }}></span>
+                      <span className="d" style={{ background: u.color }}></span>
                       <span style={{ fontWeight: isMe ? 700 : 400 }}>{u.name}</span>
                       <span style={{ marginLeft: 'auto', fontWeight: 700 }}>{score}</span>
                       {delta !== 0 && (
@@ -302,7 +302,7 @@ function ScoreChart({ currentUserId, mode, setMode, range, setRange, singleUser 
               <span key={u.id}
                 className={`legend-item ${muted ? 'muted' : ''} ${isMe ? 'me' : ''}`}
                 onClick={() => toggleMute(u.id)}>
-                <span className="swatch" style={{ background: isMe ? 'var(--accent)' : u.color }}></span>
+                <span className="swatch" style={{ background: u.color }}></span>
                 {u.name}{isMe ? ' (you)' : ''}
               </span>
             );
