@@ -32,16 +32,13 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         )
         VALUES (?, ?, ?, ?, ?, ?, ?, 'PENDING')
     ");
-
     $stmt->execute([$userId, $companyName, $jobTitle, $jobLink, $location, $notes, $tag]);
-
     $newApplicationId = $pdo->lastInsertId();
 
     $historyStmt = $pdo->prepare("
         INSERT INTO application_status_history (user_id, application_id, status)
         VALUES (?, ?, 'PENDING')
     ");
-
     $historyStmt->execute([$userId, $newApplicationId]);
 
     header("Location: " . BASE_PATH . "/dashboard.php");
@@ -75,9 +72,29 @@ $stmt = $pdo->prepare("
 
     ORDER BY a.created_at DESC
 ");
-
 $stmt->execute([$userId]);
 $applications = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+// ── Compute stats for the hero strip ─────────────────────────────────
+$totalSent       = count($applications);
+$countInterviews = 0;
+$countOffers     = 0;
+foreach ($applications as $a) {
+    if ($a["status"] === "INTERVIEW") $countInterviews++;
+    if ($a["status"] === "OFFER")     $countOffers++;
+}
+
+$scoreStmt = $pdo->prepare("
+    SELECT h.status, a.tag
+    FROM application_status_history h
+    JOIN applications a ON a.id = h.application_id
+    WHERE a.user_id = ?
+");
+$scoreStmt->execute([$userId]);
+$myScore = 0;
+foreach ($scoreStmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+    $myScore += scorePoints($row["status"], $row["tag"]);
+}
 
 function tagBadge(?string $tag): string {
     if (empty($tag)) return "";
@@ -89,174 +106,216 @@ function tagBadge(?string $tag): string {
 require_once __DIR__ . "/includes/header.php";
 ?>
 
-    <h1>Dashboard</h1>
+<!-- ── Hero stat strip ──────────────────────────────────────────────── -->
+<div class="stats-row">
+    <div class="stat featured">
+        <span class="stat-rank">#<?= $totalSent > 0 ? "—" : "—" ?></span>
+        <div class="stat-label">🏆 Your score</div>
+        <div class="stat-value"><?= $myScore ?></div>
+        <div class="stat-foot">total points earned</div>
+    </div>
+    <div class="stat">
+        <div class="stat-label">📋 Sent</div>
+        <div class="stat-value"><?= $totalSent ?></div>
+        <div class="stat-foot">applications total</div>
+    </div>
+    <div class="stat">
+        <div class="stat-label">✨ Interviews</div>
+        <div class="stat-value"><?= $countInterviews ?></div>
+        <div class="stat-foot"><?= $totalSent > 0 ? round($countInterviews / $totalSent * 100) . "% conversion" : "no apps yet" ?></div>
+    </div>
+    <div class="stat">
+        <div class="stat-label">🎯 Offers</div>
+        <div class="stat-value"><?= $countOffers ?></div>
+        <div class="stat-foot"><?= $countOffers > 0 ? "🎉 keep it up!" : "still hunting!" ?></div>
+    </div>
+</div>
 
-    <p>
-        Logged in as:
-        <strong><?= htmlspecialchars($_SESSION["username"]) ?></strong>
-    </p>
+<!-- ── Main grid ────────────────────────────────────────────────────── -->
+<div class="dashboard-grid">
 
-    <p>
-        <a href="<?= BASE_PATH ?>/leaderboard.php">View leaderboard</a> |
-        <a href="<?= BASE_PATH ?>/logout.php">Logout</a>
-    </p>
-
-    <h2>Add application</h2>
-
-    <form action="<?= BASE_PATH ?>/dashboard.php" method="POST">
-        <div>
-            <label>Company name *</label>
-            <input type="text" name="company_name" required>
-        </div>
-        <div>
-            <label>Job title</label>
-            <input type="text" name="job_title">
-        </div>
-        <div>
-            <label>Job link</label>
-            <input type="url" name="job_link">
-        </div>
-        <div>
-            <label>Location</label>
-            <input type="text" name="location">
-        </div>
-        <div>
-            <label>Notes</label>
-            <textarea name="notes"></textarea>
-        </div>
-        <div>
-            <label>Tag</label>
-            <select name="tag">
-                <option value="">— none —</option>
-                <option value="MAYBE">Maybe</option>
-                <option value="PROBABLY">Probably</option>
-                <option value="FOR SURE">For Sure</option>
-                <option value="ABSOLUTE CINEMA">Absolute Cinema</option>
-            </select>
-        </div>
-        <button type="submit">Add application</button>
-    </form>
-
-    <h2>My applications</h2>
-
-    <?php if (count($applications) === 0): ?>
-        <p>No applications yet.</p>
-    <?php else: ?>
-        <table border="1" cellpadding="8" width="100%">
-            <thead>
-                <tr>
-                    <th>Tag</th>
-                    <th>Company</th>
-                    <th>Job</th>
-                    <th>Location</th>
-                    <th>Status</th>
-                    <th>Link</th>
-                    <th>Notes</th>
-                    <th>Created</th>
-                    <th>Delete</th>
-                </tr>
-            </thead>
-            <tbody>
-                <?php foreach ($applications as $app): ?>
-                    <?php $id = (int) $app["id"]; ?>
-                    <tr id="app-<?= $id ?>">
-
-                        <!-- Tag -->
-                        <td style="vertical-align:top;">
-                            <div style="display:flex; flex-direction:column; gap:4px;">
-                            <select class="tag-select" data-id="<?= $id ?>" style="width:100%; min-width:67px;">
-                                <option value="">— none —</option>
-                                <?php foreach (["MAYBE", "PROBABLY", "FOR SURE", "ABSOLUTE CINEMA"] as $t): ?>
-                                    <option value="<?= $t ?>" <?= $app["tag"] === $t ? "selected" : "" ?>><?= $t ?></option>
-                                <?php endforeach; ?>
-                            </select>
-                            <button class="save-btn" data-id="<?= $id ?>" data-field="tag" style="display:none;">Save</button>
-                            </div>
-                        </td>
-
-                        <!-- Company -->
-                        <td><?= htmlspecialchars($app["company_name"]) ?></td>
-
-                        <!-- Job -->
-                        <td><?= htmlspecialchars($app["job_title"] ?? "") ?></td>
-
-                        <!-- Location -->
-                        <td><?= htmlspecialchars($app["location"] ?? "") ?></td>
-
-                        <!-- Status -->
-                        <td style="min-width:140px;">
-                            <?php if (!empty($app["peak_status"]) && $app["peak_status"] !== $app["status"] && in_array($app["peak_status"], ["INTERVIEW", "OFFER"])): ?>
-                                <div style="display:flex; flex-direction:column; align-items:center; gap:2px; margin-bottom:6px;">
-                                    <strong><?= htmlspecialchars($app["peak_status"]) ?></strong>
-                                    <span style="opacity:0.4; font-size:0.8em;">↓</span>
-                                </div>
-                            <?php endif; ?>
-                            <select class="status-select" data-id="<?= $id ?>" style="width:100%;">
-                                <?php foreach (["PENDING", "REJECTED", "GHOSTED", "INTERVIEW", "OFFER"] as $s): ?>
-                                    <option value="<?= $s ?>" <?= $app["status"] === $s ? "selected" : "" ?>><?= $s ?></option>
-                                <?php endforeach; ?>
-                            </select>
-                            <button class="save-btn" data-id="<?= $id ?>" data-field="status" style="display:none; margin-top:4px; width:100%;">Save</button>
-                        </td>
-
-                        <!-- Link -->
-                        <td style="vertical-align:top;">
-                            <div style="display:flex; flex-direction:column; gap:4px; align-items:flex-start;">
-                            <?php if (!empty($app["job_link"])): ?>
-                                <a href="<?= htmlspecialchars($app["job_link"]) ?>" target="_blank" class="link-display-<?= $id ?>">Open</a>
-                            <?php else: ?>
-                                <span class="link-display-<?= $id ?>" style="color:#6b7280;">—</span>
-                            <?php endif; ?>
-                            <button class="edit-link-btn" data-id="<?= $id ?>" data-current="<?= htmlspecialchars($app['job_link'] ?? '') ?>">✏️</button>
-                            </div>
-                        </td>
-
-                        <!-- Notes -->
-                        <td>
-                            <span class="notes-display-<?= $id ?>"><?= htmlspecialchars(mb_strimwidth($app["notes"] ?? "", 0, 40, "…")) ?></span>
-                            <button class="edit-notes-btn" data-id="<?= $id ?>" data-current="<?= htmlspecialchars($app['notes'] ?? '') ?>" style="margin-left:4px;">✏️</button>
-                        </td>
-
-                        <!-- Created -->
-                        <td><?= htmlspecialchars($app["created_at"]) ?></td>
-
-                        <!-- Delete -->
-                        <td>
-                            <button class="delete-btn" data-id="<?= $id ?>">Delete</button>
-                        </td>
-
-                    </tr>
-                <?php endforeach; ?>
-            </tbody>
-        </table>
-    <?php endif; ?>
-
-    <!-- ── Modal overlay ──────────────────────────────────────────────── -->
-    <div id="edit-modal" style="
-        display:none;
-        position:fixed; inset:0;
-        background:rgba(0,0,0,0.6);
-        z-index:1000;
-        align-items:center;
-        justify-content:center;
-    ">
-        <div style="
-            background:#1f2937;
-            border:1px solid #374151;
-            border-radius:10px;
-            padding:28px;
-            width:480px;
-            max-width:90vw;
-        ">
-            <h3 id="modal-title" style="margin-top:0;"></h3>
-            <textarea id="modal-textarea" style="display:none; width:100%; min-height:120px; margin-bottom:12px;"></textarea>
-            <input id="modal-input" type="url" style="display:none; width:100%; margin-bottom:12px;">
-            <div style="display:flex; gap:8px; justify-content:flex-end;">
-                <button id="modal-cancel">Cancel</button>
-                <button id="modal-save" style="background:#2563eb;">Save</button>
+    <!-- Left: applications table -->
+    <div class="col">
+        <div class="card">
+            <div class="card-head">
+                <div>
+                    <h2 class="card-title">My Applications</h2>
+                    <p class="card-subtitle"><?= $totalSent ?> total · click a status or tag to edit inline</p>
+                </div>
             </div>
+
+            <?php if (count($applications) === 0): ?>
+                <p style="color:var(--text-3); text-align:center; padding:32px 0;">
+                    No applications yet — add your first one →
+                </p>
+            <?php else: ?>
+            <div style="overflow-x:auto;">
+                <table class="lb-table">
+                    <thead>
+                        <tr>
+                            <th>Tag</th>
+                            <th>Company</th>
+                            <th>Job</th>
+                            <th>Location</th>
+                            <th>Status</th>
+                            <th>Link</th>
+                            <th>Notes</th>
+                            <th>Added</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach ($applications as $app): ?>
+                        <?php $id = (int) $app["id"]; ?>
+                        <tr id="app-<?= $id ?>">
+
+                            <!-- Tag -->
+                            <td style="min-width:110px;">
+                                <select class="inline-select tag-select" data-id="<?= $id ?>">
+                                    <option value="">— none —</option>
+                                    <?php foreach (["MAYBE", "PROBABLY", "FOR SURE", "ABSOLUTE CINEMA"] as $t): ?>
+                                        <option value="<?= $t ?>" <?= $app["tag"] === $t ? "selected" : "" ?>><?= $t ?></option>
+                                    <?php endforeach; ?>
+                                </select>
+                                <?php if (!empty($app["tag"])): ?>
+                                    <div style="margin-top:5px;"><?= tagBadge($app["tag"]) ?></div>
+                                <?php endif; ?>
+                                <button class="save-btn save-btn-sm" data-id="<?= $id ?>" data-field="tag" style="display:none;">Save</button>
+                            </td>
+
+                            <!-- Company -->
+                            <td style="font-weight:600;"><?= htmlspecialchars($app["company_name"]) ?></td>
+
+                            <!-- Job -->
+                            <td style="color:var(--text-2);"><?= htmlspecialchars($app["job_title"] ?? "") ?></td>
+
+                            <!-- Location -->
+                            <td style="color:var(--text-3); font-size:12px;"><?= htmlspecialchars($app["location"] ?? "") ?></td>
+
+                            <!-- Status -->
+                            <td style="min-width:130px;">
+                                <?php if (!empty($app["peak_status"]) && $app["peak_status"] !== $app["status"] && in_array($app["peak_status"], ["INTERVIEW", "OFFER"])): ?>
+                                    <div class="peak-indicator">
+                                        <span><?= htmlspecialchars($app["peak_status"]) ?></span>
+                                        <span class="peak-arrow">↓</span>
+                                    </div>
+                                <?php endif; ?>
+                                <select class="inline-select status-select" data-id="<?= $id ?>">
+                                    <?php foreach (["PENDING", "REJECTED", "GHOSTED", "INTERVIEW", "OFFER"] as $s): ?>
+                                        <option value="<?= $s ?>" <?= $app["status"] === $s ? "selected" : "" ?>><?= $s ?></option>
+                                    <?php endforeach; ?>
+                                </select>
+                                <button class="save-btn save-btn-sm" data-id="<?= $id ?>" data-field="status" style="display:none;">Save</button>
+                            </td>
+
+                            <!-- Link -->
+                            <td>
+                                <?php if (!empty($app["job_link"])): ?>
+                                    <a href="<?= htmlspecialchars($app["job_link"]) ?>" target="_blank"
+                                       class="link-display-<?= $id ?>"
+                                       style="color:var(--accent-strong); font-size:12px;">Open ↗</a>
+                                <?php else: ?>
+                                    <span class="link-display-<?= $id ?>" style="color:var(--text-3);">—</span>
+                                <?php endif; ?>
+                                <div style="margin-top:4px;">
+                                    <button class="edit-icon-btn edit-link-btn"
+                                            data-id="<?= $id ?>"
+                                            data-current="<?= htmlspecialchars($app['job_link'] ?? '') ?>">✏</button>
+                                </div>
+                            </td>
+
+                            <!-- Notes -->
+                            <td style="max-width:160px;">
+                                <span class="notes-display-<?= $id ?>" style="color:var(--text-2); font-size:12px;">
+                                    <?= htmlspecialchars(mb_strimwidth($app["notes"] ?? "", 0, 40, "…")) ?>
+                                </span>
+                                <button class="edit-icon-btn edit-notes-btn"
+                                        data-id="<?= $id ?>"
+                                        data-current="<?= htmlspecialchars($app['notes'] ?? '') ?>"
+                                        style="margin-left:4px;">✏</button>
+                            </td>
+
+                            <!-- Created -->
+                            <td style="font-family:var(--font-mono); font-size:11px; color:var(--text-3); white-space:nowrap;">
+                                <?= date("d M", strtotime($app["created_at"])) ?>
+                            </td>
+
+                            <!-- Delete -->
+                            <td>
+                                <button class="danger-btn delete-btn" data-id="<?= $id ?>">Delete</button>
+                            </td>
+
+                        </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+            <?php endif; ?>
         </div>
     </div>
+
+    <!-- Right: add form -->
+    <div class="col">
+        <div class="card">
+            <div class="card-head">
+                <div>
+                    <h2 class="card-title">Log an application</h2>
+                    <p class="card-subtitle">Quick-add what you sent today</p>
+                </div>
+            </div>
+
+            <form class="qa-form" action="<?= BASE_PATH ?>/dashboard.php" method="POST">
+                <div>
+                    <label class="qa-label">Company *</label>
+                    <input class="qa-input" type="text" name="company_name" placeholder="e.g. Google" required>
+                </div>
+                <div>
+                    <label class="qa-label">Job title</label>
+                    <input class="qa-input" type="text" name="job_title" placeholder="e.g. SWE Intern">
+                </div>
+                <div class="qa-row">
+                    <div>
+                        <label class="qa-label">Location</label>
+                        <input class="qa-input" type="text" name="location" placeholder="e.g. Berlin">
+                    </div>
+                    <div>
+                        <label class="qa-label">Tag</label>
+                        <select class="qa-select" name="tag">
+                            <option value="">— none —</option>
+                            <option value="MAYBE">Maybe</option>
+                            <option value="PROBABLY">Probably</option>
+                            <option value="FOR SURE">For Sure</option>
+                            <option value="ABSOLUTE CINEMA">Absolute Cinema</option>
+                        </select>
+                    </div>
+                </div>
+                <div>
+                    <label class="qa-label">Job link</label>
+                    <input class="qa-input" type="url" name="job_link" placeholder="https://…">
+                </div>
+                <div>
+                    <label class="qa-label">Notes</label>
+                    <textarea class="qa-textarea" name="notes" placeholder="Any notes…"></textarea>
+                </div>
+                <button class="btn-primary" type="submit">+ Add application</button>
+            </form>
+        </div>
+    </div>
+
+</div><!-- /.dashboard-grid -->
+
+<!-- ── Edit modal ───────────────────────────────────────────────────── -->
+<div id="edit-modal" class="modal-overlay" style="display:none;">
+    <div class="modal-box">
+        <h3 id="modal-title" class="modal-title"></h3>
+        <textarea id="modal-textarea" class="modal-field modal-textarea" style="display:none;"></textarea>
+        <input    id="modal-input"    class="modal-field" type="url"     style="display:none;">
+        <div class="modal-footer">
+            <button id="modal-cancel" class="btn-ghost">Cancel</button>
+            <button id="modal-save"   class="btn-save">Save</button>
+        </div>
+    </div>
+</div>
 
 <script>
 const BASE_PATH = "<?= BASE_PATH ?>";
@@ -301,12 +360,12 @@ document.querySelectorAll(".save-btn").forEach(btn => {
 
 // ── Modal logic ───────────────────────────────────────────────────────
 
-const modal        = document.getElementById("edit-modal");
-const modalTitle   = document.getElementById("modal-title");
-const modalSave    = document.getElementById("modal-save");
-const modalCancel  = document.getElementById("modal-cancel");
-const modalArea    = document.getElementById("modal-textarea");
-const modalInput   = document.getElementById("modal-input");
+const modal       = document.getElementById("edit-modal");
+const modalTitle  = document.getElementById("modal-title");
+const modalSave   = document.getElementById("modal-save");
+const modalCancel = document.getElementById("modal-cancel");
+const modalArea   = document.getElementById("modal-textarea");
+const modalInput  = document.getElementById("modal-input");
 
 let modalField = null;
 let modalId    = null;
@@ -337,10 +396,7 @@ function closeModal() {
 }
 
 modalCancel.addEventListener("click", closeModal);
-
-modal.addEventListener("click", e => {
-    if (e.target === modal) closeModal();
-});
+modal.addEventListener("click", e => { if (e.target === modal) closeModal(); });
 
 modalSave.addEventListener("click", () => {
     const value = modalField === "notes" ? modalArea.value : modalInput.value;
@@ -358,7 +414,9 @@ modalSave.addEventListener("click", () => {
                     const a = document.createElement("a");
                     a.href        = value;
                     a.target      = "_blank";
-                    a.textContent = "Open";
+                    a.textContent = "Open ↗";
+                    a.style.color = "var(--accent-strong)";
+                    a.style.fontSize = "12px";
                     a.className   = `link-display-${modalId}`;
                     displayEl.replaceWith(a);
                     document.querySelector(`.edit-link-btn[data-id="${modalId}"]`).dataset.current = value;
