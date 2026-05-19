@@ -148,10 +148,11 @@ function ScoreChart({ currentUserId, mode, setMode, singleUser = false }) {
 
   const renderNodes = (u, muted) => {
     const color = effectiveMode === 'multi' ? u.color : 'var(--accent)';
-    return rawSeries(u.id).map(p => {
+    return timelineFor(u.id).map(p => {
       const x = xOfTime(p.ts);
       const y = yOf(p.score);
       const isHov = hovered?.userId === u.id && hovered?.key === p.key;
+      const isEvent = !!p.events;
       return (
         <g key={p.key}
            onMouseEnter={() => setHovered({ userId: u.id, key: p.key, point: p, x })}
@@ -159,10 +160,10 @@ function ScoreChart({ currentUserId, mode, setMode, singleUser = false }) {
           <circle cx={x} cy={y} r="9" fill="transparent" />
           <circle
             cx={x} cy={y}
-            r={isHov ? 5 : 3}
-            fill={isHov ? color : 'var(--surface)'}
+            r={isHov ? 5 : (isEvent ? 3.2 : 2.2)}
+            fill={isHov || isEvent ? color : 'var(--surface)'}
             stroke={color} strokeWidth="2"
-            opacity={muted ? 0 : 1}
+            opacity={muted ? 0 : (isEvent ? 1 : 0.7)}
             pointerEvents="none"
           />
         </g>
@@ -296,8 +297,8 @@ function ScoreChart({ currentUserId, mode, setMode, singleUser = false }) {
           const u = USERS.find(user => user.id === hovered.userId);
           const point = hovered.point;
           const events = point?.events;
-          if (!u || !events) return null;
-          const delta = events.reduce((sum, ev) => sum + (Number(ev.delta) || 0), 0);
+          if (!u || !point) return null;
+          const delta = events?.reduce((sum, ev) => sum + (Number(ev.delta) || 0), 0) || 0;
           const isMe = u.id === currentUserId;
 
           return (
@@ -318,14 +319,20 @@ function ScoreChart({ currentUserId, mode, setMode, singleUser = false }) {
                     </span>
                   )}
                 </div>
-                <div style={{ paddingLeft: 14, marginTop: 2, display: 'flex', flexDirection: 'column', gap: 1 }}>
-                  {events.map((ev, j) => (
-                    <span key={j} style={{ fontSize: 10, color: 'var(--text-3)' }}>
-                      {ev.company ? `${ev.company}: ` : ''}{ev.status}
-                      {ev.tag ? ` · ${fmtTag(ev.tag)}` : ''} ({signedPoints(ev.delta)})
-                    </span>
-                  ))}
-                </div>
+                {events ? (
+                  <div style={{ paddingLeft: 14, marginTop: 2, display: 'flex', flexDirection: 'column', gap: 1 }}>
+                    {events.map((ev, j) => (
+                      <span key={j} style={{ fontSize: 10, color: 'var(--text-3)' }}>
+                        {ev.company ? `${ev.company}: ` : ''}{ev.status}
+                        {ev.tag ? ` · ${fmtTag(ev.tag)}` : ''} ({signedPoints(ev.delta)})
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  <div style={{ paddingLeft: 14, marginTop: 2, fontSize: 10, color: 'var(--text-3)' }}>
+                    Daily score checkpoint
+                  </div>
+                )}
               </div>
             </div>
           );
