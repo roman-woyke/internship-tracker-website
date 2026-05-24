@@ -7,18 +7,40 @@ $userId   = $_SESSION["user_id"];
 $username = $_SESSION["username"];
 
 // ── 1. Leaderboard: users + stats ─────────────────────────────────────
+// interviews/offers use peak status from history so they persist after rejection.
 $users = $pdo->query("
     SELECT
         users.id   AS user_id,
         users.username,
-        COUNT(applications.id)                              AS total_applications,
-        COALESCE(SUM(applications.status = 'PENDING'),   0) AS pending,
-        COALESCE(SUM(applications.status = 'REJECTED'),  0) AS rejected,
-        COALESCE(SUM(applications.status = 'GHOSTED'),   0) AS ghosted,
-        COALESCE(SUM(applications.status = 'INTERVIEW'), 0) AS interviews,
-        COALESCE(SUM(applications.status = 'OFFER'),     0) AS offers
+        COUNT(applications.id)                               AS total_applications,
+        COALESCE(SUM(applications.status = 'PENDING'),   0)  AS pending,
+        COALESCE(SUM(applications.status = 'REJECTED'),  0)  AS rejected,
+        COALESCE(SUM(applications.status = 'GHOSTED'),   0)  AS ghosted,
+        COALESCE(SUM(peak.peak_status = 'INTERVIEW'),    0)  AS interviews,
+        COALESCE(SUM(peak.peak_status = 'OFFER'),        0)  AS offers
     FROM users
     LEFT JOIN applications ON users.id = applications.user_id
+    LEFT JOIN (
+        SELECT h.application_id,
+            CASE MAX(
+                CASE h.status
+                    WHEN 'OFFER'     THEN 5
+                    WHEN 'INTERVIEW' THEN 4
+                    WHEN 'PENDING'   THEN 3
+                    WHEN 'GHOSTED'   THEN 2
+                    WHEN 'REJECTED'  THEN 1
+                    ELSE 0
+                END)
+                WHEN 5 THEN 'OFFER'
+                WHEN 4 THEN 'INTERVIEW'
+                WHEN 3 THEN 'PENDING'
+                WHEN 2 THEN 'GHOSTED'
+                WHEN 1 THEN 'REJECTED'
+                ELSE NULL
+            END AS peak_status
+        FROM application_status_history h
+        GROUP BY h.application_id
+    ) AS peak ON peak.application_id = applications.id
     GROUP BY users.id, users.username
 ")->fetchAll(PDO::FETCH_ASSOC);
 
