@@ -48,9 +48,15 @@ require_once __DIR__ . "/includes/header.php";
 ?>
 
 <style>
+/* Let the calendar page use much more of the viewport than other pages */
+main.container {
+    max-width: none;
+    padding-left: 24px;
+    padding-right: 24px;
+}
+
 .calendar-page {
-    max-width: 1500px;
-    margin: 0 auto;
+    width: 100%;
 }
 
 .user-tabs {
@@ -90,12 +96,12 @@ require_once __DIR__ . "/includes/header.php";
 }
 
 .exam-sidebar {
-    width: 340px;
+    width: 280px;
     flex-shrink: 0;
     background: #1f2937;
     border: 1px solid #374151;
     border-radius: 10px;
-    padding: 18px;
+    padding: 16px;
 }
 
 .exam-sidebar h3 {
@@ -157,25 +163,25 @@ require_once __DIR__ . "/includes/header.php";
     flex: 1;
     display: grid;
     grid-template-columns: repeat(7, 1fr);
-    gap: 6px;
+    gap: 8px;
 }
 
 .weekday-header {
     text-align: center;
-    font-size: 0.8rem;
+    font-size: 0.9rem;
     font-weight: 600;
     color: #9ca3af;
     text-transform: uppercase;
     letter-spacing: 0.05em;
-    padding: 6px 0;
+    padding: 8px 0;
 }
 
 .cal-day {
     background: #1f2937;
     border: 1px solid #374151;
-    border-radius: 8px;
-    padding: 10px;
-    min-height: 160px;
+    border-radius: 10px;
+    padding: 14px;
+    min-height: 220px;
     display: flex;
     flex-direction: column;
 }
@@ -185,31 +191,32 @@ require_once __DIR__ . "/includes/header.php";
 }
 
 .cal-day-num {
-    font-size: 1.4rem;
+    font-size: 1.75rem;
     font-weight: 700;
     color: #f3f4f6;
-    margin-bottom: 6px;
+    margin-bottom: 10px;
 }
 
 .cal-day-num .month {
-    font-size: 0.7rem;
+    font-size: 0.8rem;
     color: #9ca3af;
     font-weight: 400;
-    margin-left: 4px;
+    margin-left: 6px;
 }
 
 .exam-block {
-    padding: 6px 8px;
-    border-radius: 5px;
-    margin-top: 6px;
-    font-size: 0.78rem;
-    line-height: 1.3;
+    padding: 8px 10px;
+    border-radius: 6px;
+    margin-top: 8px;
+    font-size: 0.9rem;
+    line-height: 1.35;
 }
 
 .exam-block .eb-time {
     font-weight: 700;
     display: block;
-    margin-bottom: 2px;
+    margin-bottom: 3px;
+    font-size: 0.95rem;
 }
 
 .exam-block .eb-title {
