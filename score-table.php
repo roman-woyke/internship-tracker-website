@@ -1,3 +1,14 @@
+<style>
+/* Center all cell content in both the outer leaderboard and the inner applications tables */
+#leaderboard-body td,
+#leaderboard-body th,
+#leaderboard-body table td,
+#leaderboard-body table th {
+    text-align: center;
+    vertical-align: middle;
+}
+</style>
+
 <table border="1" cellpadding="10" width="100%">
         <thead>
             <tr>
