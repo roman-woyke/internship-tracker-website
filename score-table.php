@@ -132,7 +132,7 @@
                             }
                         </td>
                         <td>${escapeHtml(app.notes ?? "")}</td>
-                        <td>${neutralDateBadge(relativeDays(app.created_at))}</td>
+                        <td>${escapeHtml(relativeDays(app.created_at))}</td>
                         <td>${lastStatusBadge(app.last_status_change ?? app.updated_at, app.peak_status, app.status)}</td>
                     </tr>
                 `;
