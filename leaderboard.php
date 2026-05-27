@@ -4,6 +4,13 @@ require_once __DIR__ . "/includes/session.php";
 require_once __DIR__ . "/includes/header.php";
 ?>
 
+<style>
+/* Give the leaderboard more room than the default 1200px container */
+main.container {
+    max-width: 1600px;
+}
+</style>
+
     <h1>Internship Application Leaderboard</h1>
 
     <p>
