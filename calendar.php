@@ -54,14 +54,9 @@ require_once __DIR__ . "/includes/header.php";
 ?>
 
 <style>
-/* Let the calendar page use much more of the viewport than other pages,
-   but never shrink below a width where the 7-column grid gets squished.
-   The floor lives on <body> so the navbar, main content and footer all
-   stay aligned and scroll horizontally together as one unit. */
-body {
-    min-width: 1200px;
-}
-
+/* Let the calendar page use much more of the viewport than other pages.
+   (The 1200px min-width floor that keeps the 7-column grid from being
+   squished lives on <body> in style.css, shared by every page.) */
 main.container {
     max-width: none;
     padding-left: 24px;

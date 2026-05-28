@@ -6,7 +6,9 @@
 
 <div id="score-chart-section" style="margin-top: 40px;">
     <h2>Score Evolution</h2>
-    <canvas id="scoreChart" height="120"></canvas>
+    <div id="score-chart-wrap" style="position: relative; min-width: 700px; min-height: 360px;">
+        <canvas id="scoreChart"></canvas>
+    </div>
 
     <p id="chart-status" style="color: #9ca3af; font-size: 0.9rem;"></p>
 </div>
@@ -241,6 +243,7 @@
                 data: { labels, datasets: chartDatasets },
                 options: {
                     responsive: true,
+                    maintainAspectRatio: false,
                     animation:  { duration: 150 },
                     interaction: { mode: "nearest", intersect: true },
                     plugins: {
