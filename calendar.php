@@ -34,6 +34,16 @@ $today    = new DateTime("today", new DateTimeZone("UTC"));
 $firstDay = new DateTime($firstExamDate, new DateTimeZone("UTC"));
 $daysUntil = (int) ceil(($firstDay->getTimestamp() - $today->getTimestamp()) / 86400);
 
+// ── Progress: how many of the selected exams are already written ──────
+$now            = new DateTime("now", new DateTimeZone("UTC"));
+$totalSelected  = count($selectedExamIds);
+$passedSelected = 0;
+foreach ($exams as $e) {
+    if (!isset($selectedSet[(int) $e["id"]])) continue;
+    $examDateTime = new DateTime($e["exam_date"] . " " . $e["exam_time"], new DateTimeZone("UTC"));
+    if ($examDateTime < $now) $passedSelected++;
+}
+
 // ── Calendar window: Mon 13.07.2026 → Sun 26.07.2026 ──────────────────
 $startDate = new DateTime("2026-07-13");
 $days = [];
@@ -83,15 +93,31 @@ main.container {
     margin-bottom: 16px;
 }
 
+.header-stats {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: stretch;
+    gap: 16px;
+}
+
+.exam-progress,
 .exam-countdown {
     flex: 0 0 auto;
     display: flex;
     flex-direction: column;
     align-items: center;
+    justify-content: center;
     background: #1f2937;
     border: 1px solid #374151;
     border-radius: 12px;
     padding: 12px 28px;
+}
+
+.exam-progress .cd-value {
+    font-size: 2.6rem;
+    font-weight: 800;
+    line-height: 1;
+    color: #34d399;
 }
 
 .exam-countdown .cd-value {
@@ -328,17 +354,24 @@ main.container {
             </div>
         </div>
 
-        <div class="exam-countdown">
-            <?php if ($daysUntil > 0): ?>
-                <span class="cd-value">D-<?= $daysUntil ?></span>
-                <span class="cd-label">until first exam</span>
-            <?php elseif ($daysUntil === 0): ?>
-                <span class="cd-value">D-Day</span>
-                <span class="cd-label">first exam today</span>
-            <?php else: ?>
-                <span class="cd-value">🎉</span>
-                <span class="cd-label">exams done</span>
-            <?php endif; ?>
+        <div class="header-stats">
+            <div class="exam-progress">
+                <span class="cd-value"><?= $passedSelected ?>/<?= $totalSelected ?></span>
+                <span class="cd-label">exams written</span>
+            </div>
+
+            <div class="exam-countdown">
+                <?php if ($daysUntil > 0): ?>
+                    <span class="cd-value">D-<?= $daysUntil ?></span>
+                    <span class="cd-label">until first exam</span>
+                <?php elseif ($daysUntil === 0): ?>
+                    <span class="cd-value">D-Day</span>
+                    <span class="cd-label">first exam today</span>
+                <?php else: ?>
+                    <span class="cd-value">🎉</span>
+                    <span class="cd-label">exams done</span>
+                <?php endif; ?>
+            </div>
         </div>
     </div>
 
