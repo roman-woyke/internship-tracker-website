@@ -28,6 +28,12 @@ $stmt->execute([$selectedUser]);
 $selectedExamIds = array_map("intval", array_column($stmt->fetchAll(PDO::FETCH_ASSOC), "exam_id"));
 $selectedSet = array_flip($selectedExamIds);
 
+// ── Countdown to first exam ───────────────────────────────────────────
+$firstExamDate = $exams[0]["exam_date"] ?? "2026-07-13";
+$today    = new DateTime("today", new DateTimeZone("UTC"));
+$firstDay = new DateTime($firstExamDate, new DateTimeZone("UTC"));
+$daysUntil = (int) ceil(($firstDay->getTimestamp() - $today->getTimestamp()) / 86400);
+
 // ── Calendar window: Mon 13.07.2026 → Sun 26.07.2026 ──────────────────
 $startDate = new DateTime("2026-07-13");
 $days = [];
@@ -59,10 +65,51 @@ main.container {
     width: 100%;
 }
 
+.calendar-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 24px;
+}
+
+.calendar-header-left {
+    /* shrink to its content so it stays on the left */
+    flex: 0 1 auto;
+}
+
+.calendar-header h1 {
+    margin-bottom: 16px;
+}
+
+.exam-countdown {
+    flex: 0 0 auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    background: #1f2937;
+    border: 1px solid #374151;
+    border-radius: 12px;
+    padding: 12px 28px;
+}
+
+.exam-countdown .cd-value {
+    font-size: 2.6rem;
+    font-weight: 800;
+    line-height: 1;
+    color: #60a5fa;
+}
+
+.exam-countdown .cd-label {
+    margin-top: 4px;
+    font-size: 0.75rem;
+    color: #9ca3af;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+}
+
 .user-tabs {
     display: flex;
     gap: 8px;
-    margin-bottom: 24px;
     flex-wrap: wrap;
 }
 
@@ -242,6 +289,7 @@ main.container {
     border: 1px solid #374151;
     border-radius: 8px;
     padding: 10px 14px;
+    margin-top: 24px;
     margin-bottom: 16px;
     font-size: 0.9rem;
     color: #9ca3af;
@@ -254,15 +302,32 @@ main.container {
 
 <div class="calendar-page">
 
-    <h1>Exam Calendar — July 2026</h1>
+    <div class="calendar-header">
+        <div class="calendar-header-left">
+            <h1>Exam Calendar — July 2026</h1>
 
-    <div class="user-tabs">
-        <?php foreach ($users as $u): ?>
-            <a
-                class="user-tab <?= $u === $selectedUser ? 'active' : '' ?>"
-                href="<?= BASE_PATH ?>/calendar.php?user=<?= urlencode($u) ?>"
-            ><?= htmlspecialchars($u) ?></a>
-        <?php endforeach; ?>
+            <div class="user-tabs">
+                <?php foreach ($users as $u): ?>
+                    <a
+                        class="user-tab <?= $u === $selectedUser ? 'active' : '' ?>"
+                        href="<?= BASE_PATH ?>/calendar.php?user=<?= urlencode($u) ?>"
+                    ><?= htmlspecialchars($u) ?></a>
+                <?php endforeach; ?>
+            </div>
+        </div>
+
+        <div class="exam-countdown">
+            <?php if ($daysUntil > 0): ?>
+                <span class="cd-value">D-<?= $daysUntil ?></span>
+                <span class="cd-label">until first exam</span>
+            <?php elseif ($daysUntil === 0): ?>
+                <span class="cd-value">D-Day</span>
+                <span class="cd-label">first exam today</span>
+            <?php else: ?>
+                <span class="cd-value">🎉</span>
+                <span class="cd-label">exams done</span>
+            <?php endif; ?>
+        </div>
     </div>
 
     <div class="viewing-banner">

@@ -80,13 +80,6 @@ $stmt = $pdo->prepare("
 $stmt->execute([$userId]);
 $applications = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-function tagBadge(?string $tag): string {
-    if (empty($tag)) return "";
-    $slug  = strtolower(str_replace(' ', '-', $tag));
-    $label = htmlspecialchars($tag);
-    return '<span class="tag-badge tag-badge-' . $slug . '">' . $label . '</span>';
-}
-
 function daysSince(?string $ts): ?int {
     if (empty($ts)) return null;
     $then = new DateTime($ts, new DateTimeZone("UTC"));
@@ -148,7 +141,7 @@ main.container {
             <label>Location</label>
             <input type="text" name="location">
         </div>
-        <div class="form-notes">
+        <div>
             <label>Notes</label>
             <textarea name="notes"></textarea>
         </div>
