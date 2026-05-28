@@ -96,7 +96,16 @@ main.container {
     font-size: 2.6rem;
     font-weight: 800;
     line-height: 1;
-    color: #60a5fa;
+    color: #f87171;
+    animation: cd-blink 1s steps(1, end) infinite;
+}
+
+@keyframes cd-blink {
+    50% { opacity: 0.15; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .exam-countdown .cd-value { animation: none; }
 }
 
 .exam-countdown .cd-label {
